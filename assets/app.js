@@ -484,7 +484,7 @@ function renderReport(score, meta, essayText, essayTitle) {
     </div>
 
     <div class="report-section" style="text-align:center;font-size:12px;color:var(--text-3);background:#fafbfd;">
-      📊 报告生成时间：${formatDate(new Date())} · 评分标准：教育部高考语文作文评分标准 · 驱动：讯飞星火大模型（Mock）
+      📊 报告生成时间：${formatDate(new Date())} · 评分标准：教育部高考语文作文评分标准 · 驱动：${driverLabel()}
     </div>
   `;
   root.hidden = false;
@@ -504,6 +504,14 @@ function formatDate(d) {
   const x = new Date(d);
   const pad = (n) => String(n).padStart(2, '0');
   return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())} ${pad(x.getHours())}:${pad(x.getMinutes())}`;
+}
+
+// 驱动说明：按当前运行模式显示真实后端，避免误导
+function driverLabel() {
+  if (state.config.mode === 'mock') return 'Mock 模拟（未接大模型）';
+  if (state.config.mode === 'live') return '通义千问直连';
+  if (state.config.mode === 'edge') return '通义千问（Edge 代理）';
+  return '通义千问';
 }
 
 /* ====================================================================
@@ -623,7 +631,7 @@ async function downloadWord() {
 
   // 页脚
   children.push(new Paragraph({
-    children: [new TextRun({ text: '\n—— 报告生成时间：' + formatDate(new Date()) + ' · 驱动：讯飞星火大模型（Mock 模式）——', size: 18, color: '999999' })],
+    children: [new TextRun({ text: '\n—— 报告生成时间：' + formatDate(new Date()) + ' · 驱动：' + driverLabel() + ' ——', size: 18, color: '999999' })],
     alignment: AlignmentType.CENTER,
     spacing: { before: 400 }
   }));
