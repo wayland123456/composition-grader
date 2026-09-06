@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="NWhPRVbNJIhp2AuSEYZ4rJ">
+<head data-page-node-id="FWyHSYwtZ0Ku85OHoHVhHl">
+<meta charset="UTF-8" data-page-node-id="iCko7ezlG2v2HPN0K5tNYJ">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="I65twcsFCf05gA8xjogg1x">
+<title>语文作文智能批改平台 · 教师端</title>
+<link rel="stylesheet" href="assets/styles.css" data-page-node-id="Gc0P5zMzvayQuzx5gKXJv6">
+<!-- docx 生成库 -->
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<!-- docx 文件保存辅助 -->
+<script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+</head>
+<body data-page-node-id="1cwH2PC1Wg0KH4HexxLxJ1">
+<!-- ============== 顶栏 ============== -->
+<header class="topbar" data-page-node-id="v2ubHDDOUhMvuaFvKkyIlM">
+  <div class="topbar-inner" data-page-node-id="LLQ2QULvFjlqXVVS5HrXDi">
+    <a class="brand" id="btnHome" href="#" data-page-node-id="abcHomeLink01" title="返回首页">
+      <span class="logo" data-page-node-id="4v4BFn0ABlJto1lCZiUhVC">📝</span>
+      <div data-page-node-id="f8UAfO5Kh32GMzsTE4rzAy">
+        <h1 data-page-node-id="dnkKSQ6ldHDdAwyt0g4vxB">语文作文智能批改平台</h1>
+        <p class="sub" data-page-node-id="SBlf0FSTmDQmkDaNzbzY4K">教师端 · 高考评分标准 · 通义千问驱动</p>
+      </div>
+    </a>
+    <div class="topbar-meta" data-page-node-id="BgnhHorsjQmarkx9uynil4">
+      <span class="badge" id="apiStatus" data-page-node-id="VIvtxFfHGuA4g3BeKu0zSC" style="">⚙ Mock 模式</span>
+      <button class="link-btn" id="btnSettings" data-page-node-id="qBKFYUbE60FsZ65EIU21zD">⚙ 设置</button>
+    </div>
+  </div>
+</header>
+
+<!-- ============== 主体 ============== -->
+<main class="main" data-page-node-id="EfrOiz9Pu8BeyMUZUHrNB7">
+  <!-- 左侧：批改工作区 -->
+  <section class="workarea" data-page-node-id="BVOfRiMULCRYl7BaWTaL4j">
+    <!-- 步骤指示器 -->
+    <ol class="steps" id="steps" data-page-node-id="dsywoBcVX78p7Pj8uftm62">
+      <li class="step active" data-step="1" data-page-node-id="6cck1tOVKFkgj1HaeN9FIY">
+        <span class="dot" data-page-node-id="KKoDISKUAiPYoqGtFZD0pd">1</span>
+        <span class="label" data-page-node-id="PdL6F0EKjzxGOuzJvi8gua">上传图片</span>
+      </li>
+      <li class="step" data-step="2" data-page-node-id="isQTw4VtygDWEIDKmTG0UF">
+        <span class="dot" data-page-node-id="Wpx9QmNmTnekuhwNpYZGAS">2</span>
+        <span class="label" data-page-node-id="BufxRTHAJFkMjoGuzIqILe">识别修正</span>
+      </li>
+      <li class="step" data-step="3" data-page-node-id="XJxRui6nDgs3rtEyAjqsjT">
+        <span class="dot" data-page-node-id="U0KMGnHL6ZNwX4mthG5AHU">3</span>
+        <span class="label" data-page-node-id="ml7VwdIURGVhqFv4n6EROS">评分报告</span>
+      </li>
+    </ol>
+
+    <!-- ====== Step 0: 落地页（入口选择） ====== -->
+    <div class="step-panel active" id="panel-0" data-page-node-id="abcLanding01">
+      <div class="landing-hero" data-page-node-id="abcLanding02">
+        <h2 class="landing-title" data-page-node-id="abcLanding03">请选择您的身份进入</h2>
+        <p class="landing-sub" data-page-node-id="abcLanding04">语文作文智能批改平台 · 高考评分标准 · 通义千问驱动</p>
+      </div>
+
+      <div class="portal-cards" data-page-node-id="abcLanding05">
+        <button class="portal-card portal-card-student" id="btnStudentPortal2" type="button" data-page-node-id="abcLanding06">
+          <div class="pc-icon" data-page-node-id="abcLanding07">🎓</div>
+          <div class="pc-content" data-page-node-id="abcLanding08">
+            <div class="pc-name" data-page-node-id="abcLanding09">学生入口</div>
+            <div class="pc-desc" data-page-node-id="abcLanding10">
+              <b data-page-node-id="abcLanding11">适合学生自己用。</b>
+              拍照上传作文 → Coze 智能体自动批改打分 → 拿到「初步诊断」+「修改建议」，
+              <span class="pc-highlight" data-page-node-id="abcLanding12">无需等待老师，全自助完成</span>。
+            </div>
+            <div class="pc-tags" data-page-node-id="abcLanding13">
+              <span class="pc-tag" data-page-node-id="abcLanding14">🤖 AI 智能体</span>
+              <span class="pc-tag" data-page-node-id="abcLanding15">📷 拍照即可</span>
+              <span class="pc-tag" data-page-node-id="abcLanding16">⚡ 即时反馈</span>
+            </div>
+            <div class="pc-action" data-page-node-id="abcLanding17">
+              前往 Coze 智能体
+              <span class="pc-arrow" data-page-node-id="abcLanding18">→</span>
+            </div>
+          </div>
+        </button>
+
+        <button class="portal-card portal-card-teacher" id="btnTeacherPortal" type="button" data-page-node-id="abcLanding19">
+          <div class="pc-icon" data-page-node-id="abcLanding20">👨‍🏫</div>
+          <div class="pc-content" data-page-node-id="abcLanding21">
+            <div class="pc-name" data-page-node-id="abcLanding22">教师入口</div>
+            <div class="pc-desc" data-page-node-id="abcLanding23">
+              <b data-page-node-id="abcLanding24">适合老师批改全班作文。</b>
+              批量上传试题+学生作文图片 → 自动 OCR 提取文字 → 按高考 60 分标准（基础 40 + 发展 20）评分
+              <span class="pc-highlight" data-page-node-id="abcLanding25">生成 Word 报告 + 历史记录管理</span>。
+            </div>
+            <div class="pc-tags" data-page-node-id="abcLanding26">
+              <span class="pc-tag" data-page-node-id="abcLanding27">📚 批量批改</span>
+              <span class="pc-tag" data-page-node-id="abcLanding28">🎯 高考标准</span>
+              <span class="pc-tag" data-page-node-id="abcLanding29">📥 Word 报告</span>
+            </div>
+            <div class="pc-action" data-page-node-id="abcLanding30">
+              开始批改
+              <span class="pc-arrow" data-page-node-id="abcLanding31">→</span>
+            </div>
+          </div>
+        </button>
+      </div>
+
+      <div class="landing-footer" data-page-node-id="abcLanding32">
+        <p data-page-node-id="abcLanding33">💡 学生想自我批改？直接点「学生入口」跳转到 Coze 智能体，老师批改则点「教师入口」开始。</p>
+      </div>
+    </div>
+
+    <!-- ====== Step 1: 上传图片 ====== -->
+    <div class="step-panel active" id="panel-1" data-page-node-id="LppB9cEJyQoqyCcmttwa4a">
+      <h2 data-page-node-id="gmzJUT7QvvdjxLxeUH9FWr">第一步 · 上传作文图片</h2>
+      <p class="hint" data-page-node-id="bUCk11GJtZIeZL9oIMPCXK">支持 JPG / PNG / WebP，多张图片可一次拖入。「学生作文」必填，「试题」可后补。</p>
+
+    <div class="meta-row" data-page-node-id="4GaK2bceGY0ddTXfIGAyRK">
+        <div class="meta-field" data-page-node-id="BjTpm9wUCbNXrsueuqzd23">
+          <label data-page-node-id="4PwogatyisXGttg5hPOg43">学校名称</label>
+          <input type="text" id="schoolName" placeholder="例：武汉市江夏实验高级中学" value="武汉市江夏实验高级中学" data-page-node-id="02aKyX7orplVJMmmNe5VqP">
+        </div>
+        <div class="meta-field" data-page-node-id="qREqA6PSzwVEHz1G4gNeud">
+          <label data-page-node-id="JOGnBTDVCE44C3gkNYqxPB">学生姓名</label>
+          <input type="text" id="studentName" placeholder="例：沈馨蕾" data-page-node-id="s2guUqCdJRQ7B7cfiDmdb8">
+        </div>
+        <div class="meta-field" data-page-node-id="SAV6Anu80LTPzO8aiTJOGb">
+          <label data-page-node-id="0pJasvIjMQ7Y1dJXrdTWsx">作文标题（可选）</label>
+          <input type="text" id="essayTitle" placeholder="留空将由 AI 自动从文本提取" data-page-node-id="It3udzErC7cFMvLbezx33e">
+        </div>
+      </div>
+
+      <!-- 试题图片 -->
+      <div class="upload-card" data-page-node-id="hQg0rhjP9xC8mcOBdPrira">
+        <div class="upload-head" data-page-node-id="5J5koUSp8Jl3xK6BEMRYiA">
+          <h3 data-page-node-id="IEfdsdOkb6k8YaIK7BspCx">📋 试题图片</h3>
+          <span class="counter" id="questionCount" data-page-node-id="nn6lpvIsHEisHSknoVXtH4">0 张</span>
+        </div>
+        <div class="dropzone" id="dropzoneQuestion" data-type="question" data-page-node-id="MGEvF1MslkQ1IYAg24SuHk">
+          <input type="file" accept="image/*" multiple id="fileQuestion" hidden data-page-node-id="Bc1VBbX127DaMOK2rwETs3">
+          <div class="dz-prompt" data-page-node-id="WbDG2UynhtvO6U2fOONFJR">
+            <div class="dz-icon" data-page-node-id="g8gV1csi5A8kuV9Q6HYPLv">📷</div>
+            <div class="dz-text" data-page-node-id="nySqntko5Qwiv0XgXDwCJS">点击或拖拽上传试题图片</div>
+            <div class="dz-tip" data-page-node-id="aBD9iExZvEutCxyx8RZfpf">题目要求 / 阅读材料</div>
+          </div>
+        </div>
+        <div class="thumb-grid" id="thumbsQuestion" data-page-node-id="7zOMQ6JcKDqav2CqMUSl6L"></div>
+      </div>
+
+      <!-- 学生作文图片 -->
+      <div class="upload-card" data-page-node-id="1vVHkV2TGIUVOPv4d7M0tz">
+        <div class="upload-head" data-page-node-id="nGDKspOVl7cKca7eoUnsgy">
+          <h3 data-page-node-id="n0PoclQ8p65Y7YXUd4LDBA">✍ 学生作文图片</h3>
+          <span class="counter" id="essayCount" data-page-node-id="kKo9Gc3Ydhxjb6xyQyucfN">0 张</span>
+        </div>
+        <div class="dropzone" id="dropzoneEssay" data-type="essay" data-page-node-id="5YGp9aRjhxf6lufhqrXNfX">
+          <input type="file" accept="image/*" multiple id="fileEssay" hidden data-page-node-id="gTs4kJYSGzwZEO8eLVhOzD">
+          <div class="dz-prompt" data-page-node-id="2dXWY8iJWhJuHuELRd2bFg">
+            <div class="dz-icon" data-page-node-id="Bc1OldasosAYuwd26kOVkL">📷</div>
+            <div class="dz-text" data-page-node-id="oJVRF00dgnVRxLO2EPyEoE">点击或拖拽上传作文图片</div>
+            <div class="dz-tip" data-page-node-id="brpQk7JYavwQhfe1XPMKwk">学生手写或打印均可</div>
+          </div>
+        </div>
+        <div class="thumb-grid" id="thumbsEssay" data-page-node-id="D5XQIDesAEXxg0bKwhPCXn"></div>
+      </div>
+
+      <div class="action-bar" data-page-node-id="lm2CMxoYxD9wk0l10O2A9L">
+        <button class="btn btn-ghost" id="btnLoadDemo" data-page-node-id="zws0kqKlWWK2HYFamMdCcf">📦 载入示例作文（演示）</button>
+        <button class="btn btn-primary" id="btnGoStep2" disabled data-page-node-id="AOLILPu475zYlFKC53BWSW">下一步：识别文字 →</button>
+      </div>
+    </div>
+
+    <!-- ====== Step 2: OCR 识别 + 编辑 ====== -->
+    <div class="step-panel" id="panel-2" data-page-node-id="pO3OxLEpLvUfFO1dVcOQD7">
+      <h2 data-page-node-id="UbG8FG0IX3kOmdjhas2oVZ">第二步 · 识别文字（可修正）</h2>
+      <p class="hint" data-page-node-id="PKTRe0KgaFKJEIxp6uV6kG">系统已使用 OCR 提取文字。<b data-page-node-id="REYLaFJlRfpsWoyYTjdj6F">请仔细核对识别结果，修正错别字 / 漏字</b>，这会影响评分准确性。</p>
+
+      <div class="ocr-grid" data-page-node-id="gkXtwZluNcl1UTb2B6wVQq">
+        <div class="ocr-side" data-page-node-id="mTqfOdBgRhRfN7UARoIO6k">
+          <h3 data-page-node-id="JzkqLPyCPpSSQXkU5RiViU">原图预览</h3>
+          <div class="img-strip" id="imgStrip" data-page-node-id="80oRDFkMviyFojSXlm6Gqy"></div>
+        </div>
+        <div class="ocr-main" data-page-node-id="p4QrkcDY6cFwmuku2Gtmjq">
+          <div class="ocr-block" data-page-node-id="ikNn3BWJKUoD6xnBPrxMXb">
+            <label data-page-node-id="GfbHviemvTkx3YcqBBRhrI">📋 题目 / 试题</label>
+            <textarea id="ocrQuestion" rows="6" placeholder="OCR 识别后的题目..."></textarea>
+          </div>
+          <div class="ocr-block" data-page-node-id="b6rjc28zA7t7pklGI0Y8sQ">
+            <label data-page-node-id="99dCUbLuVZdTMj2uBBVBbe">✍ 作文正文 <span class="ai-tag" id="ocrEssayMeta" data-page-node-id="cmHFEsQidCEzKSnOpSoCwQ">AI 识别 · 待确认</span></label>
+            <textarea id="ocrEssay" rows="18" placeholder="OCR 识别后的作文正文..."></textarea>
+          </div>
+          <div class="ocr-meta" data-page-node-id="G9AIbqUOgkx5PjFlkvbWFE">
+            <div data-page-node-id="g3SMLv5zmA2nIGeDSJtFFb">📊 字数：<b id="charCount" data-page-node-id="lui8NMOLLifmEsFUjmOEyS">0</b></div>
+            <div data-page-node-id="gNBoeahCKESsNAPyDJXEFF">✅ 已修正：<b id="fixStatus" data-page-node-id="fojbR7Ei7ZsVjDXW4vO4ol">否</b></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-bar" data-page-node-id="yn02NmYkxKELNjgWGXRVXf">
+        <button class="btn btn-ghost" id="btnBack1" data-page-node-id="JCa2fYRbVpuJcdXz6V9E6i">← 返回上传</button>
+        <button class="btn btn-secondary" id="btnReOcr" data-page-node-id="cqyEHgzkt33qH8VoQtXqdB">🔄 重新识别</button>
+        <button class="btn btn-primary" id="btnGoStep3" data-page-node-id="yiYhkEHFvMGB4CIYt0wFoA">下一步：AI 评分 →</button>
+      </div>
+    </div>
+
+    <!-- ====== Step 3: 评分报告 ====== -->
+    <div class="step-panel" id="panel-3" data-page-node-id="QAqHhZ4nwm79OAgGNustfY">
+      <h2 data-page-node-id="fHApulxqvxlwaIECNYOjI8">第三步 · AI 评分报告</h2>
+      <p class="hint" data-page-node-id="CG81I6z3a0gmBlwTCPK30V">基于教育部高考语文作文评分标准（基础等级 40 + 发展等级 20 = 60 分）。</p>
+
+      <div id="reportRoot" data-page-node-id="JgMj2cpaEgAt3BurvMSsRs">
+        <!-- 报告渲染区 -->
+        <div class="loading" id="reportLoading" data-page-node-id="Mq8lbjV871rsvh47tG9rF4">
+          <div class="spinner" data-page-node-id="1UptgG2fHHBUIUkxACWYl9"></div>
+          <div data-page-node-id="l9s9TpjlvHVCOEvR0PBcFO">AI 评分中...（约需 5-10 秒）</div>
+        </div>
+        <div class="report-card" id="reportCard" hidden data-page-node-id="XVYTYPLcNZdMzfyBJOba7z"></div>
+      </div>
+
+      <div class="action-bar" data-page-node-id="Axe6JBr4tDdpC3mmNeYnPI">
+        <button class="btn btn-ghost" id="btnBack2" data-page-node-id="zDzXSKVKNaJjt8ztEnGO3n">← 返回修改</button>
+        <button class="btn btn-secondary" id="btnShareStudent" data-page-node-id="abcShareStudent01">📤 分享 Coze 链接</button>
+        <button class="btn btn-secondary" id="btnSaveHistory" data-page-node-id="4VGOjBQmE4QEi7HKrDwrct">💾 保存到历史</button>
+        <button class="btn btn-primary" id="btnDownloadWord" data-page-node-id="EntnETFJNszQTbhton9bY0">📥 下载 Word 报告</button>
+        <button class="btn btn-ghost" id="btnNew" data-page-node-id="mOXxU7aQRouwHCiyVogJEh">+ 新批改</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- 右侧：历史记录 -->
+  <aside class="sidebar" data-page-node-id="S5s0n6JCx8B3JcvRnoHuBu">
+    <div class="side-head" data-page-node-id="YTBE18dIAbYsnnnFiCGC1Z">
+      <h3 data-page-node-id="2qTZ59t6OcK6n14BNX2PEz">📚 历史记录</h3>
+      <button class="link-btn" id="btnClearHistory" title="清空全部" data-page-node-id="L6S1Cn9FPq6PF2SXkBzNrJ">🗑</button>
+    </div>
+    <div class="history-list" id="historyList" data-page-node-id="LzRkFEji95eV8a6wBvoKG3">
+      <div class="history-empty" data-page-node-id="RVCGsvio3q0j5o7pZ611KO">暂无记录</div>
+    </div>
+
+    <div class="side-foot" data-page-node-id="mVcmUKzEdWIcKFo3B3spyF">
+      <details data-page-node-id="r7gGGw1xNrTmDn8wz9RakQ">
+        <summary data-page-node-id="uV965tHaEYUfhVnbdq3UD9">📖 评分标准说明</summary>
+        <div class="rubric" data-page-node-id="vAkMu8FM8mhSCvkoAbvYES">
+          <p data-page-node-id="1AkVFpwBFCFDyO3E18qnwH"><b data-page-node-id="BGsUrae9pYKDutBRqt3SzY">基础等级（40 分）</b>：切合题意、中心突出、内容充实、结构严谨、语言流畅、字迹工整。</p>
+          <p data-page-node-id="IYhNXfHbKt56hnNVqkp5Nk"><b data-page-node-id="A2K2Iu63EeaBQAUAm995bU">发展等级（20 分）</b>：深刻（透过现象看本质）、丰富（材料丰富、形象丰满）、有文采（词语贴切、句式灵活）、有创意（见解新颖、材料新鲜、构思新巧）。</p>
+          <p class="tip" data-page-node-id="fWNvCeZV1YthdlzyuDq4nC">一类卷（55-60）· 二类卷（42-54）· 三类卷（36-41）· 四类卷（≤35）</p>
+        </div>
+      </details>
+    </div>
+  </aside>
+</main>
+
+<!-- ============== 设置弹窗 ============== -->
+<div class="modal" id="settingsModal" hidden data-page-node-id="TrnovjNX4KzLlA1r8mXIjz">
+  <div class="modal-card" data-page-node-id="6SvbD44S6E6pQa8q2RsnWC">
+    <div class="modal-head" data-page-node-id="unHDcW4freLA6AZRZSt2ln">
+      <h3 data-page-node-id="aFL9KsOyCQeyoSo2PZCptQ">⚙ 平台设置</h3>
+      <button class="link-btn" id="btnCloseSettings" data-page-node-id="PDhMgZ0BhxPQ61nemGnpRy">✕</button>
+    </div>
+    <div class="modal-body" data-page-node-id="V7ucioog60215tyqCYPcWn">
+      <p class="hint" data-page-node-id="QZnkHzY6QhZFNo5RuuWUQ7">
+        <b style="color:#1e3a8a;">部署推荐「Edge 代理」模式：</b>阿里云 Key 存在 Supabase 后端，前端永不暴露。本地开发可临时「通义直连」。Mock 模式无需任何凭据。
+      </p>
+      <div class="meta-field">
+        <label>运行模式</label>
+        <select id="cfgMode">
+          <option value="mock">Mock 模拟（无任何 API 调用）</option>
+          <option value="edge">🔒 Edge 代理 · Supabase Function（部署推荐，Key 不暴露）</option>
+          <option value="live">⚠ 通义直连 · DashScope（本地测试用）</option>
+        </select>
+      </div>
+
+      <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:6px;">
+        <h4 style="font-size:13px;color:var(--text-2);margin-bottom:8px;">🔒 Edge 代理配置（Supabase）</h4>
+        <div class="meta-field">
+          <label>Supabase Function 地址</label>
+          <input type="text" id="cfgEdgeUrl" placeholder="https://&lt;project-ref&gt;.supabase.co/functions/v1">
+        </div>
+        <div class="meta-field">
+          <label>Supabase anon key（公开 key，可放前端）</label>
+          <input type="password" id="cfgEdgeKey" placeholder="eyJ 开头的一长串">
+        </div>
+        <p style="font-size:11px;color:var(--text-3);margin-top:-2px;">
+          anon key 本来就要给前端调函数用，无安全风险。DashScope Key 存在 Supabase Secrets，外部完全不可见。
+        </p>
+      </div>
+
+      <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:10px;">
+        <h4 style="font-size:13px;color:var(--text-2);margin-bottom:8px;">⚠ 通义直连（仅本地测试）</h4>
+        <div class="meta-field">
+          <label>通义千问 API Key</label>
+          <input type="password" id="cfgDashKey" placeholder="sk- 开头的一串字符（部署前清空）" data-page-node-id="L3c8T9JHWoFwcbMuklR9pF">
+        </div>
+        <div class="meta-field" data-page-node-id="PUY8Fwf84HPdmUtO3KxodB">
+          <label data-page-node-id="FSu0emkNpNXj36S96NFHV0">识别模型</label>
+          <select id="cfgOcrModel" data-page-node-id="P0QeHIR8h0lohUV1jf8Bbv">
+            <option value="qwen-vl-ocr" data-page-node-id="fEpyP7S7A8meHGryUO9r3s">qwen-vl-ocr（识别手写，推荐）</option>
+            <option value="qwen-vl-max" data-page-node-id="qC0v6DxHLnSgcWhLKLip1W">qwen-vl-max（识别更智能）</option>
+          </select>
+        </div>
+        <div class="meta-field" data-page-node-id="bf2Z8KZIFdhSCXzOtYmUGx">
+          <label data-page-node-id="af0r3hMbLg49xrWPK3FVMb">评分模型</label>
+          <select id="cfgScoreModel" data-page-node-id="lRmv77ctjmPgm54tynTPd4">
+            <option value="qwen-max" data-page-node-id="GzUUOBQxuBQbJ4FBHMo5vf">qwen-max（推荐，质量高）</option>
+            <option value="qwen-plus" data-page-node-id="bvcQ8F2Fk6sTQMStystxaI">qwen-plus（更快，额度省）</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="border-top:1px solid var(--line);padding-top:14px;margin-top:6px;" data-page-node-id="abcCozeCfg01">
+        <h4 style="font-size:13px;color:var(--text-2);margin-bottom:8px;" data-page-node-id="abcCozeCfg02">🎓 学生端 Coze 智能体</h4>
+        <div class="meta-field" data-page-node-id="abcCozeCfg03">
+          <label data-page-node-id="abcCozeCfg04">Coze 智能体链接</label>
+          <input type="text" id="cfgCozeUrl" placeholder="https://www.coze.cn/space/.../bot/..." data-page-node-id="abcCozeCfg05">
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot" data-page-node-id="jrXQHjprrHAiRDB9IGTGEr">
+      <button class="btn btn-ghost" id="btnCancelSettings" data-page-node-id="2cs9siKUBkijPdO70rax4l">取消</button>
+      <button class="btn btn-primary" id="btnSaveSettings" data-page-node-id="XYTkffoYOKWyirHLN6vHsG">保存</button>
+    </div>
+  </div>
+</div>
+
+<footer class="footer" data-page-node-id="07eTmvF7eUbt2UJiON296U">
+  <p data-page-node-id="5knVMVTRZVFSBpIhIvz6xv">语文作文智能批改平台 · 教师端 v3.0 · DashScope Key 通过 Supabase Edge Function 隔离，部署目标：GitHub Pages（wayland123456/composition-grader）</p>
+</footer>
+
+<!-- 业务脚本 -->
+<script src="assets/app.js"></script>
+</body>
+</html>

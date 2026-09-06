@@ -1,0 +1,38 @@
+name: keep-supabase-alive
+
+on:
+  schedule:
+    # 每 12 小时 ping 一次 Supabase REST API，防止免费层项目因 7 天无活动被暂停
+    - cron: "0 */12 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase (Edge Functions + REST)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        run: |
+          set +e
+          echo "Pinging ${SUPABASE_URL} ..."
+
+          # 1) 触发 cold start（让两个 Edge Function 都不被关闭）
+          OCR=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "${SUPABASE_URL}/functions/v1/ocr" \
+            -H "Content-Type: application/json" \
+            -d '{"image":"data:image/png;base64,iVBORw0KGgo="}' || echo "000")
+          echo "Edge /ocr HTTP $OCR"
+
+          SCORE=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "${SUPABASE_URL}/functions/v1/score" \
+            -H "Content-Type: application/json" \
+            -d '{"title":"ping","content":"ping"}' || echo "000")
+          echo "Edge /score HTTP $SCORE"
+
+          # 2) ping REST（让项目整体被识别为活跃）
+          REST=$(curl -sS -o /dev/null -w '%{http_code}' "${SUPABASE_URL}/rest/v1/" || echo "000")
+          echo "REST / HTTP $REST"
+
+          echo "CURL_EXIT (last command) = $CURL_EXIT"
+          exit 0
