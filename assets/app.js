@@ -194,26 +194,34 @@ async function edgeScore(title, content, question) {
   });
   const json = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error('Edge Score ' + resp.status + '：' + (json.error || JSON.stringify(json).slice(0, 200)));
-  // 把 Supabase 函数返回的结构对齐到前端现有字段
+
+  // 把后端返回的新版 JSON 对齐到前端渲染字段
+  // 后端字段（新版）: total, basic, basicReason, develop, developReason, tier,
+  //                   summary, highlights, dimension_scores, polish_examples,
+  //                   gain_plan, issues, suggestions
+  // 兼容老格式（issues/suggestions 是字符串数组时）
+  const normIssues = (json.issues || []).map((it) => {
+    if (typeof it === 'string') return { title: '问题', body: it, gain: '' };
+    return { title: it.title || '问题', body: it.body || '', gain: it.gain || '' };
+  });
+  const normSuggestions = (json.suggestions || []).map((s) => {
+    if (typeof s === 'string') return { title: '建议', body: s, aiFix: '' };
+    return { title: s.title || '建议', body: s.body || s || '', aiFix: s.aiFix || '' };
+  });
   return {
     total: json.total || 0,
     basic: json.basic || 0,
-    basicReason: json.summary || '',
+    basicReason: json.basicReason || json.summary || '',
     develop: json.develop || 0,
-    developReason: (json.highlights && json.highlights.join('；')) || '',
+    developReason: json.developReason || '',
     tier: json.tier || '未评定',
-    suggestions: (json.suggestions || []).map((s) => {
-      if (typeof s === 'string') {
-        return { title: '建议', body: s, aiFix: '' };
-      }
-      return {
-        title: '建议',
-        body: s || '',
-        aiFix: (json.issues || []).find(() => true) || ''
-      };
-    }).concat(
-      (json.issues || []).map((it) => ({ title: '问题', body: it, aiFix: '' }))
-    ).slice(0, 5)
+    summary: json.summary || '',
+    highlights: json.highlights || [],
+    dimensionScores: json.dimension_scores || [],
+    polishExamples: json.polish_examples || [],
+    gainPlan: json.gain_plan || [],
+    issues: normIssues,
+    suggestions: normSuggestions
   };
 }
 
@@ -426,6 +434,120 @@ function renderReport(score, meta, essayText, essayTitle) {
     { name: '发展等级', cls: 'develop', points: score.develop, total: 20, reason: score.developReason }
   ];
 
+  // ============== 细评横条（仅 edge 模式有新字段） ==============
+  const dimHtml = (score.dimensionScores && score.dimensionScores.length)
+    ? `
+      <div class="report-section">
+        <h4>🎯 十维细评（按 60 分总分定位你的失分点）</h4>
+        <div class="dim-grid">
+          ${score.dimensionScores.map((d) => {
+            const pct = Math.round((Number(d.score || 0) / Number(d.max || 10)) * 100);
+            const isLow = pct < 60;
+            return `
+              <div class="dim-row ${isLow ? 'dim-low' : ''}">
+                <div class="dim-name">${escapeHtml(d.name)}</div>
+                <div class="dim-bar"><div class="dim-fill" style="width:${pct}%"></div></div>
+                <div class="dim-pts">${d.score}<span class="dim-max">/${d.max}</span></div>
+              </div>
+              ${d.reason ? `<div class="dim-reason">${escapeHtml(d.reason)}</div>` : ''}
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  // ============== 升格示范（最实用 ★） ==============
+  const polishHtml = (score.polishExamples && score.polishExamples.length)
+    ? `
+      <div class="report-section">
+        <h4>✍ 原文升格示范（复制粘贴即可用）</h4>
+        <p class="hint" style="margin-bottom:14px;">从你的原文中挑出最值得改的句子，按下面的示范对照修改。<b style="color:var(--accent);">${score.polishExamples.length}</b> 处范例，改完预计提分 <b style="color:var(--accent);">+${score.polishExamples.reduce((s, p) => s + (Number(String(p.gain || '').match(/\d+/)?.[0]) || 0), 0)} 分</b>。</p>
+        <div class="polish-list">
+          ${score.polishExamples.map((p, idx) => `
+            <div class="polish-card">
+              <div class="polish-head">
+                <span class="polish-num">改写 ${idx + 1}</span>
+                ${p.gain ? `<span class="polish-gain">💰 ${escapeHtml(p.gain)}</span>` : ''}
+              </div>
+              <div class="polish-original">
+                <span class="po-label">原文</span>
+                <div class="po-text">${escapeHtml(p.original)}</div>
+              </div>
+              <div class="polish-issue">
+                ⚠ <b>问题</b>：${escapeHtml(p.issue || '—')}
+              </div>
+              <div class="polish-fixed">
+                <span class="po-label po-label-fix">升格</span>
+                <div class="po-text po-text-fix">${escapeHtml(p.polished)}</div>
+              </div>
+              ${p.technique ? `<div class="polish-tech">🔧 <b>改写手法</b>：${escapeHtml(p.technique)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  // ============== 提分路径（要顶替之前的"修改升格建议"位置） ==============
+  const planHtml = (score.gainPlan && score.gainPlan.length)
+    ? `
+      <div class="report-section">
+        <h4>🚀 你的提分路径（按性价比从高到低）</h4>
+        <p class="hint">挑 1-2 个简单的先改，能立刻见效。</p>
+        <div class="gain-plan">
+          ${score.gainPlan.map((g) => `
+            <div class="gain-step">
+              <div class="gain-step-num">STEP ${g.step}</div>
+              <div class="gain-step-body">
+                <div class="gain-task">${escapeHtml(g.task)}</div>
+                <div class="gain-meta">
+                  ${g.expected ? `<span class="gain-expected">📈 ${escapeHtml(g.expected)}</span>` : ''}
+                  ${g.difficulty ? `<span class="gain-difficulty gain-difficulty-${escapeHtml(g.difficulty)}">难度：${escapeHtml(g.difficulty)}</span>` : ''}
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  // ============== 主要问题（带 gain） ==============
+  const issuesHtml = (score.issues && score.issues.length)
+    ? `
+      <div class="report-section">
+        <h4>🔍 主要问题诊断</h4>
+        <div class="suggestion-list">
+          ${score.issues.map((it) => `
+            <div class="suggestion-item">
+              <div class="si-head">
+                <div class="si-title">⚠ ${escapeHtml(it.title)}</div>
+                ${it.gain ? `<span class="si-tag">${escapeHtml(it.gain)}</span>` : ''}
+              </div>
+              <div class="si-body">${escapeHtml(it.body)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `
+    : '';
+
+  // ============== 一句话核心评价 + 亮点 ==============
+  const summaryHtml = (score.summary || (score.highlights && score.highlights.length))
+    ? `
+      <div class="report-section">
+        <h4>📌 一句话评价与亮点</h4>
+        ${score.summary ? `<div class="summary-quote">${escapeHtml(score.summary)}</div>` : ''}
+        ${score.highlights && score.highlights.length ? `
+          <div class="highlights">
+            ${score.highlights.map((h) => `<span class="highlight-tag">✨ ${escapeHtml(h)}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `
+    : '';
+
   root.innerHTML = `
     <div class="report-head">
       <h3>语文作文批改报告</h3>
@@ -439,7 +561,7 @@ function renderReport(score, meta, essayText, essayTitle) {
     <div class="score-overview">
       <div class="score-big">
         <div class="total">${score.total}<small>/60</small></div>
-        <div class="tier">${score.tier}</div>
+        <div class="tier">${escapeHtml(score.tier)}</div>
       </div>
       <div class="score-breakdown">
         ${cfgs.map((c) => `
@@ -454,6 +576,12 @@ function renderReport(score, meta, essayText, essayTitle) {
       </div>
     </div>
 
+    ${summaryHtml}
+    ${dimHtml}
+    ${polishHtml}
+    ${planHtml}
+    ${issuesHtml}
+
     <div class="report-section">
       <h4>📝 题目</h4>
       <div class="essay-title">${escapeHtml(essayTitle || meta.title || '未提供标题')}</div>
@@ -462,25 +590,6 @@ function renderReport(score, meta, essayText, essayTitle) {
     <div class="report-section">
       <h4>📄 修正识别误差后的作文文本</h4>
       <div class="essay-text">${escapeHtml(essayText)}</div>
-    </div>
-
-    <div class="report-section">
-      <h4>💡 修改升格建议</h4>
-      <div class="suggestion-list">
-        ${score.suggestions.map((s) => `
-          <div class="suggestion-item">
-            <div class="si-head">
-              <div class="si-title">${escapeHtml(s.title)}</div>
-              <span class="si-tag">${score.tier.includes('一') ? '提分空间 3-5' : '提分空间 2-4'}</span>
-            </div>
-            <div class="si-body">${escapeHtml(s.body)}</div>
-            <div class="si-ai">
-              <div class="si-ai-label">【AI 生成】</div>
-              ${escapeHtml(s.aiFix)}
-            </div>
-          </div>
-        `).join('')}
-      </div>
     </div>
 
     <div class="report-section" style="text-align:center;font-size:12px;color:var(--text-3);background:#fafbfd;">
@@ -590,42 +699,126 @@ async function downloadWord() {
     spacing: { after: 300 }
   }));
 
+  // 修改升格建议
+  children.push(new Paragraph({ text: '四、原文升格示范（最实用）', heading: HeadingLevel.HEADING_2, spacing: { after: 100, before: 200 } }));
+  if (score.polishExamples && score.polishExamples.length) {
+    score.polishExamples.forEach((p, i) => {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `改写 ${i + 1}`, bold: true, color: '1E3A8A', size: 24 }),
+          p.gain ? new TextRun({ text: `    💰 ${p.gain}`, color: 'F59E0B', bold: true, size: 22 }) : new TextRun('')
+        ],
+        spacing: { before: 150, after: 80 }
+      }));
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: '【原文】', bold: true, color: 'DC2626', size: 20 }),
+          new TextRun({ text: p.original, size: 22 })
+        ],
+        spacing: { after: 60 }, indent: { left: 200 }
+      }));
+      if (p.issue) {
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: '【问题】', bold: true, color: 'F59E0B', size: 20 }),
+            new TextRun({ text: p.issue, size: 22 })
+          ],
+          spacing: { after: 60 }, indent: { left: 200 }
+        }));
+      }
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: '【升格】', bold: true, color: '10B981', size: 20 }),
+          new TextRun({ text: p.polished, size: 22 })
+        ],
+        spacing: { after: 60 }, indent: { left: 200 }
+      }));
+      if (p.technique) {
+        children.push(new Paragraph({
+          children: [
+            new TextRun({ text: '【改写手法】', bold: true, color: '1E3A8A', size: 20 }),
+            new TextRun({ text: p.technique, size: 22 })
+          ],
+          spacing: { after: 200 }, indent: { left: 200 }
+        }));
+      }
+    });
+  } else {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: '（无）', size: 22, color: '999999' })],
+      spacing: { after: 100 }
+    }));
+  }
+
+  // 提分路径
+  children.push(new Paragraph({ text: '五、提分路径（按性价比从高到低）', heading: HeadingLevel.HEADING_2, spacing: { after: 100, before: 200 } }));
+  if (score.gainPlan && score.gainPlan.length) {
+    score.gainPlan.forEach((g) => {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `STEP ${g.step}  `, bold: true, color: 'F59E0B', size: 24 }),
+          new TextRun({ text: g.task, size: 22, bold: true })
+        ],
+        spacing: { before: 100, after: 60 }
+      }));
+      const metaParts = [];
+      if (g.expected) metaParts.push('📈 ' + g.expected);
+      if (g.difficulty) metaParts.push('难度：' + g.difficulty);
+      if (metaParts.length) {
+        children.push(new Paragraph({
+          children: [new TextRun({ text: metaParts.join('    '), size: 20, color: '10B981' })],
+          spacing: { after: 150 }, indent: { left: 200 }
+        }));
+      }
+    });
+  }
+
+  // 问题诊断
+  children.push(new Paragraph({ text: '六、主要问题诊断', heading: HeadingLevel.HEADING_2, spacing: { after: 100, before: 200 } }));
+  if (score.issues && score.issues.length) {
+    score.issues.forEach((it, i) => {
+      children.push(new Paragraph({
+        children: [
+          new TextRun({ text: `${i + 1}. ${it.title}`, bold: true, size: 24 }),
+          it.gain ? new TextRun({ text: `    ${it.gain}`, color: 'F59E0B', size: 22 }) : new TextRun('')
+        ],
+        spacing: { before: 100, after: 60 }
+      }));
+      children.push(new Paragraph({
+        children: [new TextRun({ text: it.body, size: 22 })],
+        spacing: { after: 150 }, indent: { left: 200 }
+      }));
+    });
+  }
+
+  // 兼容字段
+  children.push(new Paragraph({ text: '七、修改升格建议（短建议）', heading: HeadingLevel.HEADING_2, spacing: { after: 100, before: 200 } }));
+  (score.suggestions || []).forEach((s, i) => {
+    children.push(new Paragraph({
+      children: [new TextRun({ text: `${i + 1}. ${s.title}`, bold: true, size: 24 })],
+      spacing: { before: 100, after: 80 }
+    }));
+    children.push(new Paragraph({
+      children: [new TextRun({ text: s.body || s, size: 22 })],
+      spacing: { after: 200 }
+    }));
+  });
+
   // 题目
-  children.push(new Paragraph({ text: '二、题目', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }));
+  children.push(new Paragraph({ text: '八、题目', heading: HeadingLevel.HEADING_2, spacing: { after: 100, before: 200 } }));
   children.push(new Paragraph({
     children: [new TextRun({ text: essayTitle, bold: true, size: 24 })],
     spacing: { after: 200 }
   }));
 
   // 作文正文
-  children.push(new Paragraph({ text: '三、修正识别误差后的作文文本', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }));
+  children.push(new Paragraph({ text: '九、修正识别误差后的作文文本', heading: HeadingLevel.HEADING_2, spacing: { after: 100 } }));
   essayText.split(/\n+/).forEach((para) => {
     if (!para.trim()) return;
     children.push(new Paragraph({
       children: [new TextRun({ text: para.trim(), size: 22 })],
       alignment: AlignmentType.JUSTIFIED,
       spacing: { after: 120, line: 360 }
-    }));
-  });
-
-  // 修改升格建议
-  children.push(new Paragraph({ text: '四、修改升格建议', heading: HeadingLevel.HEADING_2, spacing: { after: 100, before: 200 } }));
-  score.suggestions.forEach((s, i) => {
-    children.push(new Paragraph({
-      children: [new TextRun({ text: `${i + 1}. ${s.title}`, bold: true, size: 24 })],
-      spacing: { before: 100, after: 80 }
-    }));
-    children.push(new Paragraph({
-      children: [new TextRun({ text: s.body, size: 22 })],
-      spacing: { after: 80 }
-    }));
-    children.push(new Paragraph({
-      children: [
-        new TextRun({ text: '【AI 生成】', bold: true, color: 'F59E0B', size: 22 }),
-        new TextRun({ text: s.aiFix, size: 22 })
-      ],
-      spacing: { after: 200, line: 360 },
-      indent: { left: 360 }
     }));
   });
 
