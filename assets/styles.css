@@ -227,6 +227,23 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-3);
   margin: 0;
 }
+.school-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-2) 100%);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  box-shadow: 0 4px 14px rgba(30, 58, 138, .25);
+  cursor: default;
+}
+.school-badge-icon { font-size: 16px; line-height: 1; }
+.school-badge-text { line-height: 1; }
 
 .portal-cards {
   display: grid;
