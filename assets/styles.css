@@ -621,6 +621,8 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--text-3);
   gap: 16px;
 }
+/* 修复：display:flex 会覆盖原生 [hidden] 的 display:none，导致 loading 一直显示 */
+.loading[hidden] { display: none; }
 .spinner {
   width: 36px; height: 36px;
   border: 3px solid var(--line);
