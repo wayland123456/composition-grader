@@ -9,6 +9,8 @@
 <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 <!-- docx 文件保存辅助 -->
 <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+<!-- pako：gzip 压缩（用于把报告数据打包进分享链接） -->
+<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
 </head>
 <body data-page-node-id="1cwH2PC1Wg0KH4HexxLxJ1">
 <!-- ============== 顶栏 ============== -->
@@ -217,7 +219,8 @@
 
       <div class="action-bar" data-page-node-id="Axe6JBr4tDdpC3mmNeYnPI">
         <button class="btn btn-ghost" id="btnBack2" data-page-node-id="zDzXSKVKNaJjt8ztEnGO3n">← 返回修改</button>
-        <button class="btn btn-secondary" id="btnShareStudent" data-page-node-id="abcShareStudent01">📤 分享 Coze 链接</button>
+        <button class="btn btn-secondary" id="btnShareReport" data-page-node-id="abcShareReport01">📤 分享报告</button>
+        <button class="btn btn-secondary" id="btnShareStudent" data-page-node-id="abcShareStudent01">分享 Coze 链接</button>
         <button class="btn btn-secondary" id="btnSaveHistory" data-page-node-id="4VGOjBQmE4QEi7HKrDwrct">💾 保存到历史</button>
         <button class="btn btn-primary" id="btnDownloadWord" data-page-node-id="EntnETFJNszQTbhton9bY0">📥 下载 Word 报告</button>
         <button class="btn btn-ghost" id="btnNew" data-page-node-id="mOXxU7aQRouwHCiyVogJEh">+ 新批改</button>

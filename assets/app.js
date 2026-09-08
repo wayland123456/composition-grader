@@ -862,6 +862,103 @@ async function downloadWord() {
 }
 
 /* ====================================================================
+ * 报告分享（把报告数据 gzip 打包进链接，同事手机点开即可查看）
+ * ==================================================================== */
+function u8ToBase64(u8) {
+  let bin = '';
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]);
+  return btoa(bin);
+}
+function base64ToU8(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+function toB64Url(b64) { return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function fromB64Url(s) {
+  let b64 = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4) b64 += '=';
+  return b64;
+}
+
+// 生成可分享链接：gzip 压缩报告数据后塞进 ?r= 参数
+function shareReport() {
+  if (!state.score) { flashToast('⚠️ 请先完成批改再分享'); return; }
+  const essayText = ($('ocrEssay') && $('ocrEssay').value.trim()) || (state.edits && state.edits.essay) || '';
+  const title = ($('essayTitle') && $('essayTitle').value.trim()) || (state.meta && state.meta.title) || '';
+  const question = ($('ocrQuestion') && $('ocrQuestion').value.trim()) || '';
+  const payload = {
+    v: 1,
+    score: state.score,
+    meta: state.meta,
+    essayText: essayText,
+    essayTitle: title,
+    question: question
+  };
+  const jsonStr = JSON.stringify(payload);
+  const u8 = new TextEncoder().encode(jsonStr);
+  let b64;
+  if (window.pako && window.pako.gzip) {
+    b64 = u8ToBase64(window.pako.gzip(u8));   // 压缩，链接更短
+  } else {
+    b64 = u8ToBase64(u8);                     // 不支持 pako 时退化为无压缩
+  }
+  const link = location.origin + location.pathname + '?r=' + toB64Url(b64);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(() => {
+      flashToast('✅ 报告链接已复制，发给同事即可查看');
+    }).catch(() => { prompt('复制以下链接发给同事：', link); });
+  } else {
+    prompt('复制以下链接发给同事：', link);
+  }
+}
+
+// 从链接加载分享的报告并渲染
+function loadSharedReport() {
+  const m = location.search.match(/[?&]r=([^&]+)/);
+  if (!m) return false;
+  let data;
+  try {
+    const u8 = base64ToU8(fromB64Url(m[1]));
+    let jsonStr;
+    if (window.pako && window.pako.inflate) {
+      jsonStr = window.pako.inflate(u8, { to: 'string' });
+    } else {
+      jsonStr = new TextDecoder().decode(u8);
+    }
+    data = JSON.parse(jsonStr);
+  } catch (e) {
+    console.error('分享报告解析失败', e);
+    flashToast('⚠️ 报告链接无效或已损坏');
+    return false;
+  }
+  if (!data || !data.score || !data.essayText) return false;
+
+  const meta = data.meta || {};
+  state.score = data.score;
+  state.meta = meta;
+  state.edits = state.edits || {};
+  state.edits.essay = data.essayText || '';
+  state.edits.question = data.question || '';
+
+  // 回填表单，方便继续「下载 Word / 保存历史」
+  if ($('schoolName')) $('schoolName').value = meta.school || '';
+  if ($('studentName')) $('studentName').value = meta.student || '';
+  if ($('essayTitle')) $('essayTitle').value = data.essayTitle || meta.title || '';
+  if ($('ocrQuestion')) $('ocrQuestion').value = data.question || '';
+  if ($('ocrEssay')) $('ocrEssay').value = data.essayText || '';
+  if (typeof updateCharCount === 'function') updateCharCount();
+
+  const title = data.essayTitle || meta.title || '';
+  renderReport(data.score, meta, data.essayText, title);
+  if ($('reportLoading')) $('reportLoading').hidden = true;
+  goStep(3);
+  flashToast('✅ 已打开分享的报告');
+  return true;
+}
+
+/* ====================================================================
  * 历史记录（localStorage）
  * ==================================================================== */
 const HISTORY_KEY = 'composition_platform_history_v1';
@@ -1207,9 +1304,13 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // 7. 启动渲染
-  renderHistory();
-  refreshGoStep2();
-  goStep(0);  // 默认显示落地页
+  $('btnShareReport').addEventListener('click', shareReport);
+  // 若带分享链接 ?r= 则直接渲染报告；否则显示默认落地页
+  if (!loadSharedReport()) {
+    renderHistory();
+    refreshGoStep2();
+    goStep(0);  // 默认显示落地页
+  }
 });
 
 function extractTitle(text) {
