@@ -882,8 +882,8 @@ function fromB64Url(s) {
   return b64;
 }
 
-// 生成可分享链接：gzip 压缩报告数据后塞进 ?r= 参数
-function shareReport() {
+// 生成可分享链接：把报告数据存到 Supabase，链接只带 8 位短 ID（不再受字数限制）
+async function shareReport() {
   if (!state.score) { flashToast('⚠️ 请先完成批改再分享'); return; }
   const essayText = ($('ocrEssay') && $('ocrEssay').value.trim()) || (state.edits && state.edits.essay) || '';
   const title = ($('essayTitle') && $('essayTitle').value.trim()) || (state.meta && state.meta.title) || '';
@@ -896,43 +896,78 @@ function shareReport() {
     essayTitle: title,
     question: question
   };
-  const jsonStr = JSON.stringify(payload);
-  const u8 = new TextEncoder().encode(jsonStr);
-  let b64;
-  if (window.pako && window.pako.gzip) {
-    b64 = u8ToBase64(window.pako.gzip(u8));   // 压缩，链接更短
-  } else {
-    b64 = u8ToBase64(u8);                     // 不支持 pako 时退化为无压缩
-  }
-  const link = location.origin + location.pathname + '?r=' + toB64Url(b64);
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(link).then(() => {
-      flashToast('✅ 报告链接已复制，发给同事即可查看');
-    }).catch(() => { prompt('复制以下链接发给同事：', link); });
-  } else {
-    prompt('复制以下链接发给同事：', link);
+
+  const btn = $('btnShareReport');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成链接中…'; }
+  try {
+    // 存报告到 Supabase Edge Function，返回短 ID
+    const resp = await fetch(edgeBase() + '/report', {
+      method: 'POST',
+      headers: edgeAuth(),
+      body: JSON.stringify({ data: payload })
+    });
+    const json = await resp.json().catch(() => ({}));
+    if (!resp.ok || !json.id) {
+      throw new Error(json.error || ('存储失败 HTTP ' + resp.status));
+    }
+    const link = location.origin + location.pathname + '?r=' + json.id;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(link);
+      flashToast('✅ 报告链接已复制（' + link.length + ' 字符），发给同事即可查看');
+    } else {
+      prompt('复制以下链接发给同事：', link);
+    }
+  } catch (e) {
+    console.error('分享失败', e);
+    flashToast('⚠️ 分享失败：' + (e.message || e) + '（若反复失败，请确认已部署 report 函数）');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 分享报告'; }
   }
 }
 
 // 从链接加载分享的报告并渲染
-function loadSharedReport() {
+// 兼容两种链接：短 ID（走 Supabase 查询）和旧版 base64 长链接（本地解析）
+async function loadSharedReport() {
   const m = location.search.match(/[?&]r=([^&]+)/);
   if (!m) return false;
+  const raw = decodeURIComponent(m[1]);
   let data;
-  try {
-    const u8 = base64ToU8(fromB64Url(m[1]));
-    let jsonStr;
-    if (window.pako && window.pako.inflate) {
-      jsonStr = window.pako.inflate(u8, { to: 'string' });
-    } else {
-      jsonStr = new TextDecoder().decode(u8);
+
+  // 短 ID（6~16 位字母数字）→ 走 Supabase
+  if (/^[A-Za-z0-9]{6,16}$/.test(raw)) {
+    try {
+      const resp = await fetch(edgeBase() + '/report?id=' + encodeURIComponent(raw), {
+        method: 'GET',
+        headers: { apikey: (state.config.edgeAnonKey || '') }
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json.data) {
+        throw new Error(json.error || ('读取失败 HTTP ' + resp.status));
+      }
+      data = json.data;
+    } catch (e) {
+      console.error('读取分享报告失败', e);
+      flashToast('⚠️ 报告读取失败：' + (e.message || e) + '（报告可能已失效）');
+      return false;
     }
-    data = JSON.parse(jsonStr);
-  } catch (e) {
-    console.error('分享报告解析失败', e);
-    flashToast('⚠️ 报告链接无效或已损坏');
-    return false;
+  } else {
+    // 旧版 base64 长链接（向后兼容）
+    try {
+      const u8 = base64ToU8(fromB64Url(raw));
+      let jsonStr;
+      if (window.pako && window.pako.inflate) {
+        jsonStr = window.pako.inflate(u8, { to: 'string' });
+      } else {
+        jsonStr = new TextDecoder().decode(u8);
+      }
+      data = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('分享报告解析失败', e);
+      flashToast('⚠️ 报告链接无效或已损坏');
+      return false;
+    }
   }
+
   if (!data || !data.score || !data.essayText) return false;
 
   const meta = data.meta || {};
@@ -1306,11 +1341,13 @@ window.addEventListener('DOMContentLoaded', () => {
   // 7. 启动渲染
   $('btnShareReport').addEventListener('click', shareReport);
   // 若带分享链接 ?r= 则直接渲染报告；否则显示默认落地页
-  if (!loadSharedReport()) {
-    renderHistory();
-    refreshGoStep2();
-    goStep(0);  // 默认显示落地页
-  }
+  loadSharedReport().then((ok) => {
+    if (!ok) {
+      renderHistory();
+      refreshGoStep2();
+      goStep(0);  // 默认显示落地页
+    }
+  });
 });
 
 function extractTitle(text) {
