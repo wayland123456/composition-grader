@@ -23,7 +23,7 @@ const state = {
     dashKey: '',                                       // 本地直连备用（留空则不出现在前端）
     ocrModel: 'qwen-vl-ocr',
     scoreModel: 'qwen-plus',                           // 默认 qwen3-plus（DashScope 模型名 qwen-plus）
-    cozeUrl: 'https://www.coze.cn/space/7681245914807828522/bot/7681303617945075747',
+    cozeUrl: 'https://www.coze.cn/store/agent/7681303617945075747?bot_id=true',
     edgeUrl: 'https://gqlwspxcyhjtzhikcexj.supabase.co/functions/v1',
     edgeAnonKey: 'sb_publishable_PqN5m9yOrWZzBazFjO7Y_w_pfIMO1PI', // 英语网站项目 publishable key（公开可放前端）
     edgeVerified: false,                               // 启动时 ping 函数验通
@@ -1107,8 +1107,12 @@ function openCozePortal() {
 }
 
 function refreshStudentPortalLink() {
-  const a = $('btnStudentPortal');
+  // 落地页学生入口（<a>，避免 mobile window.open 被拦截）
+  const a = $('btnStudentPortal2');
   if (a) a.href = state.config.cozeUrl || '#';
+  // 兼容旧 id
+  const aOld = $('btnStudentPortal');
+  if (aOld) aOld.href = state.config.cozeUrl || '#';
 }
 
 /* ====================================================================
@@ -1278,7 +1282,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // 6.1 落地页入口
   $('btnHome').addEventListener('click', (e) => { e.preventDefault(); goStep(0); });
-  $('btnStudentPortal2').addEventListener('click', () => openCozePortal());
+  // 学生入口改成 <a target="_blank">，由浏览器自然处理新窗口跳转，避开 mobile window.open 拦截
+  refreshStudentPortalLink();
   $('btnTeacherPortal').addEventListener('click', () => goStep(1));
 
   // 6. 设置弹窗

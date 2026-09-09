@@ -262,6 +262,8 @@ button { font-family: inherit; cursor: pointer; }
   cursor: pointer;
   text-align: left;
   font-family: inherit;
+  text-decoration: none;        /* <a> 默认有下划线，去掉 */
+  color: inherit;               /* <a> 默认蓝色，继承父级 */
   transition: all .25s ease;
   position: relative;
   overflow: hidden;
