@@ -1,8 +1,11 @@
 // Supabase Edge Function: score
 // POST { title, content, question }
-// 调用通义千问 qwen-max 按高考语文作文 60 分制评分，返回结构化 JSON。
+// 调用通义千问 qwen3-plus（DashScope 模型名 qwen-plus，等同 qwen-plus-2025-07-28）
+// 按高考语文作文 60 分制评分，返回结构化 JSON。
 // v2 (2026-09-07)：融合教育部 2025"八要和八不要" + 湖北阅卷组细则 + 完整评分标准，
 //                  并加入 few-shot 升格教学（精选《55 分升格之旅》2 例）。
+// v3 (2026-09-09)：评分模型从 qwen-max 切换到 qwen-plus（Qwen3 系列 Plus），
+//                  单次成本约降低 25-30 倍，效果对高考语文作文够用。
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
@@ -277,7 +280,7 @@ serve(async (req) => {
   const userText = `${RUBRIC}\n\n${FEW_SHOT}\n\n【特别要求】\n- 阅卷前先过【阅卷三大法则】（真情、思考、逻辑）和【八要和八不要】，触发的"不要"条款要在 basicReason 里点明\n- polish_examples 必须从学生原文中引用原句（不是泛指），并给出可直接复用的升格版（30-80 字），按【升格方法论】的"定位问题→升格要点→示范改写→提分"四步走\n- gain_plan 按"性价比"排序：第一条必须是改起来最快、提分最明显的；至少 4 条\n- 升格示范避免空话（"用更生动的语言"这种不算），必须有具体的修辞/句式/论据，并填 technique 字段\n- 提分幅度基于 60 分卷的常见档位差给出（如"+2~3 分到一类卷底线"）\n- 发展等级严格遵守封顶：基础一/二等⇒最高 20；基础三等⇒封顶 10；基础四等⇒封顶 6\n- 硬性扣分：无标题 −2，每少 50 字 −1，错别字每 1 字 −1（最多 −5），扣完得 total\n- ⚠️ 若学生作文出现真实校名/姓名等个人信息，必须在 issues 中点出并扣 3-5 分\n\n【作文题目】\n${title || "（无题）"}\n\n【原题/要求】\n${question || "（未提供原题，按通用记叙文/议论文标准评）"}\n\n【学生作文】\n${content}\n\n请按 SYSTEM 字段定义输出 JSON。`;
 
   const body = {
-    model: "qwen-max",
+    model: "qwen-plus",  // 即 Qwen3-Plus，输入 0.8 元/百万tokens，输出 2 元/百万tokens（华北2）
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: userText },

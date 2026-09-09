@@ -9,8 +9,6 @@
 <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
 <!-- docx 文件保存辅助 -->
 <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-<!-- pako：gzip 压缩（用于把报告数据打包进分享链接） -->
-<script src="https://unpkg.com/pako@2.1.0/dist/pako.min.js"></script>
 </head>
 <body data-page-node-id="1cwH2PC1Wg0KH4HexxLxJ1">
 <!-- ============== 顶栏 ============== -->
@@ -219,8 +217,7 @@
 
       <div class="action-bar" data-page-node-id="Axe6JBr4tDdpC3mmNeYnPI">
         <button class="btn btn-ghost" id="btnBack2" data-page-node-id="zDzXSKVKNaJjt8ztEnGO3n">← 返回修改</button>
-        <button class="btn btn-secondary" id="btnShareReport" data-page-node-id="abcShareReport01">📤 分享报告</button>
-        <button class="btn btn-secondary" id="btnShareStudent" data-page-node-id="abcShareStudent01">分享 Coze 链接</button>
+        <button class="btn btn-secondary" id="btnShareStudent" data-page-node-id="abcShareStudent01">📤 分享 Coze 链接</button>
         <button class="btn btn-secondary" id="btnSaveHistory" data-page-node-id="4VGOjBQmE4QEi7HKrDwrct">💾 保存到历史</button>
         <button class="btn btn-primary" id="btnDownloadWord" data-page-node-id="EntnETFJNszQTbhton9bY0">📥 下载 Word 报告</button>
         <button class="btn btn-ghost" id="btnNew" data-page-node-id="mOXxU7aQRouwHCiyVogJEh">+ 新批改</button>
@@ -306,16 +303,22 @@
         <div class="meta-field" data-page-node-id="PUY8Fwf84HPdmUtO3KxodB">
           <label data-page-node-id="FSu0emkNpNXj36S96NFHV0">识别模型</label>
           <select id="cfgOcrModel" data-page-node-id="P0QeHIR8h0lohUV1jf8Bbv">
-            <option value="qwen-vl-ocr" data-page-node-id="fEpyP7S7A8meHGryUO9r3s">qwen-vl-ocr（识别手写，推荐）</option>
-            <option value="qwen-vl-max" data-page-node-id="qC0v6DxHLnSgcWhLKLip1W">qwen-vl-max（识别更智能）</option>
+            <option value="qwen-vl-ocr" selected data-page-node-id="fEpyP7S7A8meHGryUO9r3s">qwen-vl-ocr（推荐，最便宜，0.3/0.5 元/百万tokens）</option>
+            <option value="qwen-vl-plus" data-page-node-id="qC0v6DxHLnSgcWhLKLip1W">qwen-vl-plus（更智能但贵 5 倍）</option>
           </select>
+          <p class="form-hint" style="font-size:11px;color:#888;margin:4px 0 0;">
+            ⚠ Edge 模式下，前端选哪个不影响实际调用——后端 <code>ocr/index.ts</code> 硬编码为 qwen-vl-ocr，部署新版才生效。
+          </p>
         </div>
         <div class="meta-field" data-page-node-id="bf2Z8KZIFdhSCXzOtYmUGx">
           <label data-page-node-id="af0r3hMbLg49xrWPK3FVMb">评分模型</label>
           <select id="cfgScoreModel" data-page-node-id="lRmv77ctjmPgm54tynTPd4">
-            <option value="qwen-max" data-page-node-id="GzUUOBQxuBQbJ4FBHMo5vf">qwen-max（推荐，质量高）</option>
-            <option value="qwen-plus" data-page-node-id="bvcQ8F2Fk6sTQMStystxaI">qwen-plus（更快，额度省）</option>
+            <option value="qwen-plus" selected data-page-node-id="bvcQ8F2Fk6sTQMStystxaI">qwen3-plus（推荐，性价比高，省 25-30 倍）</option>
+            <option value="qwen-max" data-page-node-id="GzUUOBQxuBQbJ4FBHMo5vf">qwen-max（更强，但贵）</option>
           </select>
+          <p class="form-hint" data-page-node-id="hintScoreModel" style="font-size:11px;color:#888;margin:4px 0 0;">
+            ⚠ Edge 模式下，前端选哪个不影响实际调用——后端 <code>score/index.ts</code> 硬编码为 qwen-plus，部署新版才生效。
+          </p>
         </div>
       </div>
 

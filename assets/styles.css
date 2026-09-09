@@ -951,6 +951,51 @@ button { font-family: inherit; cursor: pointer; }
   .score-overview { grid-template-columns: 1fr; }
 }
 
+/* 小屏手机优化：防止 topbar 挤出、落地页卡片变形 */
+@media (max-width: 768px) {
+  .topbar-inner { padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
+  .brand { gap: 10px; }
+  .brand .logo { width: 40px; height: 40px; font-size: 24px; }
+  .brand h1 { font-size: 16px; }
+  .brand .sub {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 240px;
+  }
+  .topbar-meta { margin-left: auto; gap: 8px; }
+  .badge { padding: 3px 8px; font-size: 11px; }
+  .link-btn { padding: 4px 8px; font-size: 12px; }
+
+  .main { padding: 0 12px; margin: 12px auto; }
+  .workarea { padding: 16px 16px 24px; }
+
+  .landing-hero { padding: 18px 0 22px; margin-bottom: 18px; }
+  .landing-title { font-size: 20px; }
+  .landing-sub { font-size: 12px; padding: 0 12px; }
+  .school-badge { font-size: 12px; padding: 6px 14px; letter-spacing: 1px; }
+
+  .portal-cards { grid-template-columns: 1fr; gap: 16px; }
+  .portal-card { flex-direction: row; padding: 18px 16px; gap: 14px; }
+  .portal-card .pc-icon { width: 64px; height: 64px; font-size: 32px; }
+  .portal-card .pc-name { font-size: 18px; }
+  .portal-card .pc-desc { font-size: 12px; line-height: 1.6; }
+  .portal-card .pc-tags { display: none; }
+  .portal-card .pc-action { font-size: 13px; }
+
+  .steps .label { display: none; }
+  .steps .dot { width: 24px; height: 24px; font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .brand .sub { display: none; }
+  .topbar-inner { flex-direction: column; align-items: flex-start; }
+  .topbar-meta { margin-left: 0; width: 100%; justify-content: flex-end; }
+  .portal-card { flex-direction: column; align-items: center; text-align: center; }
+  .portal-card .pc-icon { width: 72px; height: 72px; }
+}
+
 /* ============== 报告新增版块（v4 升级） ============== */
 
 /* 一句话核心评价 */

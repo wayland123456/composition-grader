@@ -22,7 +22,7 @@ const state = {
   config: {
     dashKey: '',                                       // 本地直连备用（留空则不出现在前端）
     ocrModel: 'qwen-vl-ocr',
-    scoreModel: 'qwen-max',
+    scoreModel: 'qwen-plus',                           // 默认 qwen3-plus（DashScope 模型名 qwen-plus）
     cozeUrl: 'https://www.coze.cn/space/7681245914807828522/bot/7681303617945075747',
     edgeUrl: 'https://gqlwspxcyhjtzhikcexj.supabase.co/functions/v1',
     edgeAnonKey: 'sb_publishable_PqN5m9yOrWZzBazFjO7Y_w_pfIMO1PI', // 英语网站项目 publishable key（公开可放前端）
@@ -263,9 +263,9 @@ async function dashOcr(dataUrl) {
   return String(text).trim();
 }
 
-// 评分：qwen-max 按高考 60 分标准出 JSON
+// 评分：qwen3-plus（DashScope 模型名 qwen-plus）按高考 60 分标准出 JSON
 async function dashScore(title, content) {
-  const model = state.config.scoreModel || 'qwen-max';
+  const model = state.config.scoreModel || 'qwen-plus';
   const prompt = SCORE_PROMPT.replace('{TITLE}', title || '（未提供题目）').replace('{CONTENT}', content);
   const body = {
     model: model,
