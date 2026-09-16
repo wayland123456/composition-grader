@@ -32,9 +32,10 @@ const EXPECTED_KEYS = (() => {
   return keys;
 })();
 
-// DashScope API Key：优先 env 兜底硬编码
-const FALLBACK_DASH_KEY = "sk-f023354dbf9c4022b2a0f33b30da8d73";
-const getDashKey = () => Deno.env.get("DASHSCOPE_API_KEY") || FALLBACK_DASH_KEY;
+// DashScope API Key：只从 Edge Function Secrets 读取，禁止写入代码或仓库。
+// 配置方式：Supabase Dashboard -> Project Settings -> Edge Functions -> Secrets
+//           新增 DASHSCOPE_API_KEY，然后重新 Deploy 本函数。
+const getDashKey = () => Deno.env.get("DASHSCOPE_API_KEY") || "";
 
 function jsonResp(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -62,6 +63,12 @@ serve(async (req) => {
   }
 
   const apiKey = getDashKey();
+  if (!apiKey) {
+    return jsonResp(
+      { error: "服务端未配置 DASHSCOPE_API_KEY，请在 Supabase 项目 Secrets 中设置后重新部署" },
+      500,
+    );
+  }
 
   let payload: {
     image?: string;

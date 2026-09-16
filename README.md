@@ -32,23 +32,34 @@ composition-platform/
 
 ## 部署步骤（约 10 分钟）
 
-> ⚠️ **注意**：当前 Supabase 账号免费额度已满（已建 2 个项目），本平台复用 **英语学习网站** `gqlwspxcyhjtzhikcexj` 项目，加 2 个 Edge Function，不新建项目。
+> ⚠️ **密钥绝不能硬编码进代码！**
+> 本项目 2026-09-07 曾把 DashScope Key 以 `FALLBACK_DASH_KEY` 形式写进函数代码，
+> 而本仓库是 **public**（GitHub Pages 免费版必须公开），导致密钥自 09-07 起公开暴露，
+> 被爬虫扫走后盗刷，累计损失 400+ 元。
+>
+> 现在两个函数都**只从 Edge Function Secrets 读取** `DASHSCOPE_API_KEY`，读不到就报 500 并提示。
+> 密钥配置位置：**Project Settings → Edge Functions → Secrets**，切勿再写回代码。
 
-### 1. 进入英语网站项目 Dashboard（30 秒）
+### 推荐：用 CLI 部署（比手贴快，且不会漏配 Verify JWT）
 
-打开 https://supabase.com/dashboard → 进入 **`english-learning`（ref: `gqlwspxcyhjtzhikcexj`）** 项目。
+```bash
+# 首次使用需登录（令牌会存在系统凭据管理器里）
+supabase login
 
-> **已无需任何 Secrets 配置！** DashScope Key 和 publishable key 已硬编码进函数代码作兜底，未来可在 Dashboard 里加 Secret override。
+cd composition-platform
 
-### 2. 部署两个 Edge Function（3 分钟）
+# --no-verify-jwt 必须带：新版 sb_publishable_ key 不是 JWT，不带会全线 401
+supabase functions deploy ocr   --project-ref gqlwspxcyhjtzhikcexj --no-verify-jwt
+supabase functions deploy score --project-ref gqlwspxcyhjtzhikcexj --no-verify-jwt
+```
+
+### 或：在 Dashboard 手工部署
 
 1. 左侧菜单 **Edge Functions** → **Create new function**
 2. 函数名填 `ocr` → 进编辑器 → **Ctrl+A 全选 → 删除默认代码** → 打开 `supabase/functions/ocr/index.ts` 复制全文 → 粘贴 → **Deploy**
 3. 同理：建 `score`，粘贴 `supabase/functions/score/index.ts` → **Deploy**
 4. 每个函数 deploy 后，**点进函数详情 → Settings / Authentication → 找到 `Verify JWT` → 设为 Disable**（默认是 Required）。**这一步不做，前端会 401**。
 5. 两个函数都部署完毕（首次冷启动 10-20 秒）后告诉我，我接管推送。
-
-> ⚠️ **Verify JWT 必须关**：新版 `sb_publishable_` key 不是 JWT，平台会拒绝。我们已在函数内实现了 `apikey` header 校验。
 
 ### 3. 测试 Edge Functions
 
