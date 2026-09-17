@@ -69,7 +69,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 12px;
   display: grid; place-items: center;
 }
-.brand h1 { font-size: 19px; font-weight: 600; letter-spacing: .5px; }
+.brand h1 { font-size: 19px; font-weight: 600; letter-spacing: .5px; line-height: 1.25; }
 .brand .sub { font-size: 12px; opacity: .8; margin-top: 2px; }
 
 .topbar-meta { display: flex; align-items: center; gap: 12px; }
@@ -958,7 +958,7 @@ button { font-family: inherit; cursor: pointer; }
   .topbar-inner { padding: 10px 16px; flex-wrap: wrap; gap: 10px; }
   .brand { gap: 10px; }
   .brand .logo { width: 40px; height: 40px; font-size: 24px; }
-  .brand h1 { font-size: 16px; }
+  .brand h1 { font-size: 16px; line-height: 1.25; }
   .brand .sub {
     font-size: 10px;
     white-space: nowrap;
@@ -991,6 +991,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 @media (max-width: 480px) {
+  .brand { min-width: 0; }
+  .brand h1 { font-size: 15px; }
   .brand .sub { display: none; }
   .topbar-inner { flex-direction: column; align-items: flex-start; }
   .topbar-meta { margin-left: 0; width: 100%; justify-content: flex-end; }

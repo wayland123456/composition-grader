@@ -1,4 +1,4 @@
-# 语文作文智能批改平台 · 教师端
+# 高考语文作文智能批阅与分层辅导平台 · 教师端
 
 高考 60 分制（基础 40 + 发展 20）智能批改平台。前端纯静态，部署到 GitHub Pages，DashScope API Key 通过 Supabase Edge Functions 隔离保存，**前端永不暴露密钥**。
 
