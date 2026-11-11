@@ -149,7 +149,7 @@ async function doLogin() {
     flashToast('✅ 欢迎回来，' + session.name + '老师');
     goStep(pendingStep || 1);
   } catch (e) {
-    showLoginError('网络连不上服务器，已自动重试 3 次仍失败。直接再点一次「登录」；还不行就换个网络（Wi-Fi 和流量互换）。');
+    showLoginError('网络连不上服务器，已自动重试 3 次。请等 10 秒左右再点一次——连续猛点反而更容易被拦截；或换个网络（Wi-Fi 和流量互换）。');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText || '登 录'; }
   }
@@ -259,7 +259,7 @@ async function doChangePassword() {
 /* 带自动重试的请求：国内到 supabase 的链路时通时断，
    Failed to fetch / Load failed 这类网络错误先重试，别直接甩给老师看。
    注意：只重试网络异常，4xx/5xx 是服务器明确答复，不重试。 */
-async function fetchWithRetry(url, options, attempts = 3, delays = [700, 1600]) {
+async function fetchWithRetry(url, options, attempts = 3, delays = [1200, 3000]) {
   let lastErr = null;
   for (let i = 0; i < attempts; i++) {
     try {
