@@ -110,7 +110,7 @@ async function doLogin() {
   const oldText = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '验证中…'; }
   try {
-    const resp = await fetch(edgeBase() + '/login', {
+    const resp = await fetchWithRetry(edgeBase() + '/login', {
       method: 'POST',
       headers: {
         'apikey': state.config.edgeAnonKey,
@@ -149,8 +149,7 @@ async function doLogin() {
     flashToast('✅ 欢迎回来，' + session.name + '老师');
     goStep(pendingStep || 1);
   } catch (e) {
-    showLoginError('连不上批改服务器（' + (e.message || e) +
-      '）。多半是这个网络访问不了 supabase，换 Wi-Fi 或流量再试一次。');
+    showLoginError('网络连不上服务器，已自动重试 3 次仍失败。直接再点一次「登录」；还不行就换个网络（Wi-Fi 和流量互换）。');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText || '登 录'; }
   }
@@ -255,6 +254,24 @@ async function doChangePassword() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText || '确认修改'; }
   }
+}
+
+/* 带自动重试的请求：国内到 supabase 的链路时通时断，
+   Failed to fetch / Load failed 这类网络错误先重试，别直接甩给老师看。
+   注意：只重试网络异常，4xx/5xx 是服务器明确答复，不重试。 */
+async function fetchWithRetry(url, options, attempts = 3, delays = [700, 1600]) {
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, delays[i] || 1600));
+      }
+    }
+  }
+  throw lastErr || new Error('network error');
 }
 
 /* ====================================================================
@@ -407,7 +424,7 @@ function edgeAuth() {
 }
 
 async function edgeOcr(dataUrl) {
-  const resp = await fetch(edgeBase() + '/ocr', {
+  const resp = await fetchWithRetry(edgeBase() + '/ocr', {
     method: 'POST',
     headers: edgeAuth(),
     body: JSON.stringify({ image: dataUrl })
@@ -423,7 +440,7 @@ async function edgeOcr(dataUrl) {
 }
 
 async function edgeScore(title, content, question) {
-  const resp = await fetch(edgeBase() + '/score', {
+  const resp = await fetchWithRetry(edgeBase() + '/score', {
     method: 'POST',
     headers: edgeAuth(),
     body: JSON.stringify({ title, content, question })
@@ -469,7 +486,7 @@ async function edgeTest() {
   // 用 OCR 函数发一张 1x1 透明 PNG，看返回
   const tinyPng =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-  const resp = await fetch(edgeBase() + '/ocr', {
+  const resp = await fetchWithRetry(edgeBase() + '/ocr', {
     method: 'POST',
     headers: edgeAuth(),
     body: JSON.stringify({ image: tinyPng })
@@ -1143,7 +1160,7 @@ async function shareReport() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 生成链接中…'; }
   try {
     // 存报告到 Supabase Edge Function，返回短 ID
-    const resp = await fetch(edgeBase() + '/report', {
+    const resp = await fetchWithRetry(edgeBase() + '/report', {
       method: 'POST',
       headers: edgeAuth(),
       body: JSON.stringify({ data: payload })
