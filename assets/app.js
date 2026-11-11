@@ -149,8 +149,8 @@ async function doLogin() {
     flashToast('✅ 欢迎回来，' + session.name + '老师');
     goStep(pendingStep || 1);
   } catch (e) {
-    showLoginError('无法连接登录服务：' + (e.message || e) +
-      '（请检查网络，或确认 Supabase 项目是否被暂停）');
+    showLoginError('连不上批改服务器（' + (e.message || e) +
+      '）。多半是这个网络访问不了 supabase，换 Wi-Fi 或流量再试一次。');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = oldText || '登 录'; }
   }
@@ -1327,6 +1327,23 @@ function updateCharCount() {
 /* ====================================================================
  * 设置弹窗
  * ==================================================================== */
+function modeLabel(mode) {
+  return {
+    mock: '⚙ Mock 模拟模式',
+    live: '✓ 通义千问直连',
+    edge: '✓ Edge 代理'
+  }[mode] || mode;
+}
+
+/* 顶栏模式徽标：启动时也要刷一次，否则会一直显示 HTML 里写死的「Mock 模式」 */
+function refreshApiBadge() {
+  const el = $('apiStatus');
+  if (!el) return;
+  el.textContent = modeLabel(state.config.mode);
+  el.style.background = state.config.mode === 'mock' ? '' : 'rgba(16, 185, 129, .18)';
+  el.style.color = state.config.mode === 'mock' ? '' : '#10b981';
+}
+
 function openSettings() {
   $('cfgDashKey').value = state.config.dashKey || '';
   $('cfgOcrModel').value = state.config.ocrModel;
@@ -1387,6 +1404,7 @@ window.addEventListener('DOMContentLoaded', () => {
     state.auth.exp = session.exp;
   }
   syncAuthUI();
+  refreshApiBadge();
   $('btnDoLogin').addEventListener('click', doLogin);
   $('btnCancelLogin').addEventListener('click', closeLogin);
   $('btnCloseLogin').addEventListener('click', closeLogin);
@@ -1583,11 +1601,8 @@ window.addEventListener('DOMContentLoaded', () => {
     $('cfgMode').value = state.config.mode;
     refreshStudentPortalLink();
     closeSettings();
-    const labels = { mock: '⚙ Mock 模拟模式', live: '✓ 通义千问直连', edge: '✓ Edge 代理（推荐部署）' };
-    $('apiStatus').textContent = labels[state.config.mode];
-    $('apiStatus').style.background = state.config.mode === 'mock' ? '' : 'rgba(16, 185, 129, .18)';
-    $('apiStatus').style.color = state.config.mode === 'mock' ? '' : '#10b981';
-    flashToast('✅ 设置已保存，当前模式：' + labels[state.config.mode]);
+    refreshApiBadge();
+    flashToast('✅ 设置已保存，当前模式：' + modeLabel(state.config.mode));
   });
 
   // 学生端 Coze 入口（仅落地页「学生入口」大卡片使用）
