@@ -73,6 +73,18 @@ button { font-family: inherit; cursor: pointer; }
 .brand .sub { font-size: 12px; opacity: .8; margin-top: 2px; }
 
 .topbar-meta { display: flex; align-items: center; gap: 12px; }
+/* 顶栏当前教师 */
+.teacher-chip {
+  background: rgba(255, 255, 255, .14);
+  border: 1px solid rgba(255, 255, 255, .28);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.teacher-chip[hidden] { display: none; }
+.teacher-chip b { font-weight: 600; }
 .badge {
   background: rgba(245, 158, 11, .18);
   color: var(--accent-2);
@@ -865,6 +877,11 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   gap: 6px;
 }
+.history-item .hi-teacher {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 2px;
+}
 .history-item .hi-actions button {
   font-size: 11px;
   padding: 2px 8px;
@@ -932,6 +949,19 @@ button { font-family: inherit; cursor: pointer; }
   gap: 10px;
   background: #fafbfd;
 }
+
+/* ============== 登录弹窗 ============== */
+.modal-card-sm { width: 420px; }
+.login-error {
+  background: rgba(220, 38, 38, .08);
+  border: 1px solid rgba(220, 38, 38, .28);
+  color: #dc2626;
+  font-size: 12.5px;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.login-error[hidden] { display: none; }
+.login-tip { font-size: 11.5px; color: var(--text-3); line-height: 1.6; margin: 0; }
 
 /* ============== 页脚 ============== */
 .footer {

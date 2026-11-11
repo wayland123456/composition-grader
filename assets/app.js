@@ -28,13 +28,177 @@ const state = {
     edgeAnonKey: 'sb_publishable_PqN5m9yOrWZzBazFjO7Y_w_pfIMO1PI', // 英语网站项目 publishable key（公开可放前端）
     edgeVerified: false,                               // 启动时 ping 函数验通
     mode: 'edge'                                       // 复用英语网站 Supabase 项目的 Edge Functions
-  }
+  },
+  auth: { user: null, guest: false }   // 当前登录教师 / guest = 只看分享报告
 };
+
+/* ====================================================================
+ * 教师账号登录（前端软校验）
+ * --------------------------------------------------------------------
+ * 账号 = 教师姓名全拼，初始密码统一 123456。
+ * 源码里只存「盐 + 账号 + 密码」的 SHA-256 摘要，不出现明文密码；
+ * 这是静态站点的轻量门禁（防误入），不是服务端鉴权 —— 谁都能改前端 JS，
+ * 所以别把需要真保密的资料放在这个页面后面。
+ * ==================================================================== */
+const AUTH_SALT = 'cp-grader-v1';
+const AUTH_KEY = 'composition_platform_auth_v1';
+const AUTH_TTL = 7 * 24 * 60 * 60 * 1000;   // 登录状态保留 7 天
+
+const TEACHERS = [
+  { account: 'lihaifeng', name: '李海峰', hash: '45ecf2aecb9563c520f90993c2c2ea110397fee423f25a35a149e14ec90a7e81' },
+  { account: 'zhounian',  name: '周念',   hash: '8f56b9fdebe8ca2a37c7dc5639872434f055172441bcb5c28252d10513e2aafa' },
+  { account: 'qizhengwei', name: '祁正伟', hash: '4cf9ed24d183c9458c5fe5bf7d25f4c8346df5f715fe6978c365df90a145f400' }
+];
+
+let pendingStep = 0;   // 登录成功后要去的步骤
+
+/* ---- 极简 SHA-256：不依赖 crypto.subtle，file:// 直接打开也能用 ---- */
+function sha256Hex(msg) {
+  const K = [
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+  ];
+  const bytes = new TextEncoder().encode(String(msg));
+  const bitLen = bytes.length * 8;
+  const total = ((bytes.length + 8) >> 6) * 64 + 64;   // 标准 0x80 + 补零 + 64 位长度
+  const buf = new Uint8Array(total);
+  buf.set(bytes);
+  buf[bytes.length] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(total - 8, Math.floor(bitLen / 4294967296), false);
+  dv.setUint32(total - 4, bitLen >>> 0, false);
+
+  let H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+  const w = new Uint32Array(64);
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+
+  for (let i = 0; i < total; i += 64) {
+    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4, false);
+    for (let t = 16; t < 64; t++) {
+      const s0 = rr(w[t - 15], 7) ^ rr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+      const s1 = rr(w[t - 2], 17) ^ rr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let t = 0; t < 64; t++) {
+      const S1 = rr(e, 6) ^ rr(e, 11) ^ rr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[t] + w[t]) >>> 0;
+      const S0 = rr(a, 2) ^ rr(a, 13) ^ rr(a, 22);
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0;
+      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H = [(H[0] + a) >>> 0, (H[1] + b) >>> 0, (H[2] + c) >>> 0, (H[3] + d) >>> 0,
+         (H[4] + e) >>> 0, (H[5] + f) >>> 0, (H[6] + g) >>> 0, (H[7] + h) >>> 0];
+  }
+  return H.map((x) => x.toString(16).padStart(8, '0')).join('');
+}
+
+function findTeacher(account) {
+  const a = String(account || '').trim().toLowerCase();
+  return TEACHERS.find((t) => t.account === a) || null;
+}
+
+function passwordHash(account, password) {
+  return sha256Hex(AUTH_SALT + '|' + account + '|' + password);
+}
+
+/* 读取本地登录状态（过期自动失效） */
+function readAuth() {
+  try {
+    const o = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+    if (!o || !o.account || !o.exp) return null;
+    if (Date.now() > o.exp) { localStorage.removeItem(AUTH_KEY); return null; }
+    const t = findTeacher(o.account);
+    return t ? { account: t.account, name: t.name } : null;
+  } catch (e) { return null; }
+}
+
+function writeAuth(teacher) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify({
+    account: teacher.account, name: teacher.name, exp: Date.now() + AUTH_TTL
+  }));
+}
+
+/* 顶栏显示 / 隐藏教师身份 */
+function syncAuthUI() {
+  const u = state.auth.user;
+  const chip = $('teacherChip');
+  const out = $('btnLogout');
+  if (chip) {
+    chip.hidden = !u;
+    const nameEl = $('teacherName');
+    if (nameEl && u) nameEl.textContent = u.name;
+  }
+  if (out) out.hidden = !u;
+}
+
+function openLogin(step) {
+  pendingStep = step || 1;
+  $('loginAccount').value = '';
+  $('loginPassword').value = '';
+  $('loginError').hidden = true;
+  $('loginModal').hidden = false;
+  setTimeout(() => { try { $('loginAccount').focus(); } catch (e) {} }, 60);
+}
+
+function closeLogin() {
+  $('loginModal').hidden = true;
+}
+
+function doLogin() {
+  const account = $('loginAccount').value.trim();
+  const pwd = $('loginPassword').value;
+  const err = $('loginError');
+  const t = findTeacher(account);
+  if (!account || !pwd) {
+    err.textContent = '请输入账号和密码';
+    err.hidden = false;
+    return;
+  }
+  if (!t || passwordHash(t.account, pwd) !== t.hash) {
+    err.textContent = '账号或密码不正确，请检查后重试';
+    err.hidden = false;
+    $('loginPassword').value = '';
+    $('loginPassword').focus();
+    return;
+  }
+  err.hidden = true;
+  state.auth.user = { account: t.account, name: t.name };
+  state.auth.guest = false;
+  writeAuth(t);
+  syncAuthUI();
+  closeLogin();
+  flashToast('✅ 欢迎回来，' + t.name + '老师');
+  goStep(pendingStep || 1);
+}
+
+function logout() {
+  localStorage.removeItem(AUTH_KEY);
+  state.auth.user = null;
+  state.auth.guest = false;
+  syncAuthUI();
+  goStep(0);
+  flashToast('已退出登录');
+}
 
 /* ====================================================================
  * 步骤导航
  * ==================================================================== */
 function goStep(n) {
+  // 除落地页外都要求已登录；guest 仅允许看分享报告（第 3 步）
+  if (n >= 1 && !state.auth.user && !(state.auth.guest && n === 3)) {
+    openLogin(n);
+    return;
+  }
   state.step = n;
   // 落地页时隐藏步骤指示器
   $('steps').classList.toggle('hidden-on-landing', n === 0);
@@ -573,6 +737,7 @@ function renderReport(score, meta, essayText, essayTitle) {
       <div class="report-meta">
         <span>🏫 学校：<b>${escapeHtml(meta.school || '—')}</b></span>
         <span>👤 学生：<b>${escapeHtml(meta.student || '—')}</b></span>
+        ${meta.teacher ? `<span>🧑‍🏫 批改教师：<b>${escapeHtml(meta.teacher)}</b></span>` : ''}
         <span>📅 批改时间：<b>${formatDate(meta.createdAt)}</b></span>
       </div>
     </div>
@@ -977,6 +1142,7 @@ async function loadSharedReport() {
   state.edits = state.edits || {};
   state.edits.essay = data.essayText || '';
   state.edits.question = data.question || '';
+  state.auth.guest = true;   // 看分享报告不需要教师登录
 
   // 回填表单，方便继续「下载 Word / 保存历史」
   if ($('schoolName')) $('schoolName').value = meta.school || '';
@@ -1039,6 +1205,7 @@ function renderHistory() {
         <span>${escapeHtml(r.school || '—')}</span>
         <span>${formatDate(r.createdAt).slice(5, 16)}</span>
       </div>
+      ${r.meta && r.meta.teacher ? `<div class="hi-teacher">🧑‍🏫 ${escapeHtml(r.meta.teacher)}</div>` : ''}
       <div class="hi-actions">
         <button data-act="view">查看</button>
         <button data-act="del">删除</button>
@@ -1132,6 +1299,17 @@ window.cp = {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
+  // 0. 恢复上次的登录状态（7 天内免登录）+ 绑定登录弹窗
+  state.auth.user = readAuth();
+  syncAuthUI();
+  $('btnDoLogin').addEventListener('click', doLogin);
+  $('btnCancelLogin').addEventListener('click', closeLogin);
+  $('btnCloseLogin').addEventListener('click', closeLogin);
+  $('btnLogout').addEventListener('click', logout);
+  [$('loginAccount'), $('loginPassword')].forEach((el) => {
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+  });
+
   // 1. 步骤指示器可点击（落地页时不响应）
   document.querySelectorAll('.step').forEach((s) => {
     s.addEventListener('click', () => {
@@ -1224,6 +1402,7 @@ window.addEventListener('DOMContentLoaded', () => {
       school: $('schoolName').value.trim(),
       student: $('studentName').value.trim(),
       title: $('essayTitle').value.trim(),
+      teacher: state.auth.user ? state.auth.user.name : '',
       createdAt: new Date()
     };
 

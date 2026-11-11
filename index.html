@@ -23,8 +23,10 @@
       </div>
     </a>
     <div class="topbar-meta" data-page-node-id="BgnhHorsjQmarkx9uynil4">
+      <span class="teacher-chip" id="teacherChip" hidden>🧑‍🏫 <b id="teacherName">—</b></span>
       <span class="badge" id="apiStatus" data-page-node-id="VIvtxFfHGuA4g3BeKu0zSC" style="">⚙ Mock 模式</span>
       <button class="link-btn" id="btnSettings" data-page-node-id="qBKFYUbE60FsZ65EIU21zD">⚙ 设置</button>
+      <button class="link-btn" id="btnLogout" hidden>退出</button>
     </div>
   </div>
 </header>
@@ -95,6 +97,7 @@
               <span class="pc-tag" data-page-node-id="abcLanding27">📚 批量批改</span>
               <span class="pc-tag" data-page-node-id="abcLanding28">🎯 高考标准</span>
               <span class="pc-tag" data-page-node-id="abcLanding29">📥 Word 报告</span>
+              <span class="pc-tag" data-page-node-id="abcLanding29b">🔐 教师账号登录</span>
             </div>
             <div class="pc-action" data-page-node-id="abcLanding30">
               开始批改
@@ -259,6 +262,33 @@
     </div>
   </aside>
 </main>
+
+<!-- ============== 教师登录弹窗 ============== -->
+<div class="modal" id="loginModal" hidden>
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <h3>🧑‍🏫 教师登录</h3>
+      <button class="link-btn" id="btnCloseLogin">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="hint">教师端需登录后使用批改功能。账号为本人姓名全拼，初始密码请向管理员索取。</p>
+      <div class="meta-field">
+        <label>账号（姓名全拼）</label>
+        <input type="text" id="loginAccount" placeholder="例：lihaifeng" autocomplete="username" autocapitalize="none" spellcheck="false">
+      </div>
+      <div class="meta-field">
+        <label>密码</label>
+        <input type="password" id="loginPassword" placeholder="请输入密码" autocomplete="current-password">
+      </div>
+      <div class="login-error" id="loginError" hidden></div>
+      <p class="login-tip">登录状态在本机保留 7 天，公用电脑用完请点右上角「退出」。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btnCancelLogin">取消</button>
+      <button class="btn btn-primary" id="btnDoLogin">登 录</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============== 设置弹窗 ============== -->
 <div class="modal" id="settingsModal" hidden data-page-node-id="TrnovjNX4KzLlA1r8mXIjz">
