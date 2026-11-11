@@ -3,14 +3,20 @@
 // POST { account, password } -> { token, name, account, exp }
 // --------------------------------------------------------------------
 // 教师登录。账号密码校验通过后签发 8 小时有效的 JWT，其它函数只认这枚令牌。
-// 密码哈希与签名密钥都只存在 Edge Function Secrets：
-//   TEACHER_ACCOUNTS = [{"account":"lihaifeng","name":"李海峰","hash":"pbkdf2$..."}]
-//   AUTH_JWT_SECRET  = 随机长串（base64url）
+// 密码来源：优先 public.teacher_accounts（老师可自助改），
+//           首次登录时用 Secrets 的 TEACHER_ACCOUNTS 校验并落库（引导）。
 // 前端代码里没有任何能换到令牌的字符串，拿源码也刷不了模型的 token。
 // ====================================================================
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { signTeacherToken, verifyPassword } from "../_shared/auth.ts";
+import {
+  ensureTable,
+  findTeacherFromDb,
+  getDb,
+  loadSeedTeachers,
+  saveTeacherHash,
+} from "../_shared/teachers.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,32 +32,7 @@ function jsonResp(body: unknown, status = 200) {
   });
 }
 
-interface TeacherRecord {
-  account: string;
-  name: string;
-  hash: string;
-}
-
-function loadTeachers(): TeacherRecord[] {
-  try {
-    const raw = Deno.env.get("TEACHER_ACCOUNTS") || "";
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr
-      .filter((t) => t && typeof t.account === "string" && typeof t.hash === "string")
-      .map((t) => ({
-        account: String(t.account).trim().toLowerCase(),
-        name: String(t.name || t.account),
-        hash: String(t.hash),
-      }));
-  } catch {
-    return [];
-  }
-}
-
 // 简易防爆破：同一实例内按账号累计失败次数，5 次锁 10 分钟。
-// （Edge Function 实例会被复用，够挡住脚本瞎试；跨实例的严格限流交给阿里云额度兜底。）
 const FAIL_LIMIT = 5;
 const LOCK_MS = 10 * 60 * 1000;
 const fails = new Map<string, { count: number; until: number }>();
@@ -95,35 +76,68 @@ serve(async (req) => {
     return jsonResp({ error: `密码错误次数过多，请 ${mins} 分钟后再试` }, 429);
   }
 
-  const teachers = loadTeachers();
-  if (teachers.length === 0) {
+  let db = null as Awaited<ReturnType<typeof getDb>> | null;
+  let record: { account: string; name: string; hash: string } | null = null;
+  let fromDb = false;
+
+  try {
+    db = await getDb();
+    await ensureTable(db);
+    const row = await findTeacherFromDb(db, account);
+    if (row) {
+      record = { account: row.account, name: row.name, hash: row.pwd_hash };
+      fromDb = true;
+    }
+  } catch (_e) {
+    // 数据库不可用：降级到 Secrets，仅保证登录不至于全盘失败
+    db = null;
+  }
+
+  if (!record) {
+    const seed = loadSeedTeachers().find((t) => t.account === account);
+    if (seed) record = { account: seed.account, name: seed.name, hash: seed.hash };
+  }
+
+  if (!record && !db) {
+    const hasSeed = loadSeedTeachers().length > 0;
     return jsonResp(
-      { error: "服务端未配置 TEACHER_ACCOUNTS，请在 Supabase Secrets 中设置后重新部署" },
-      500,
+      {
+        error: hasSeed
+          ? "账号或密码不正确"
+          : "服务端未配置教师账号，请在 Supabase Secrets 中设置 TEACHER_ACCOUNTS",
+      },
+      hasSeed ? 401 : 500,
     );
   }
 
-  const teacher = teachers.find((t) => t.account === account);
   // 账号不存在也走一遍哈希，避免用响应时间判断账号是否存在
   const dummyHash =
     "pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-  const ok = await verifyPassword(password, teacher ? teacher.hash : dummyHash);
+  const ok = await verifyPassword(password, record ? record.hash : dummyHash);
 
-  if (!teacher || !ok) {
+  if (!record || !ok) {
     recordFail(account);
-    // 放缓爆破速度（也让"账号是否存在"在时间上不可区分）
+    try { if (db) await db.end(); } catch { /* ignore */ }
     await new Promise((r) => setTimeout(r, 700));
     return jsonResp({ error: "账号或密码不正确" }, 401);
   }
 
+  // 首次用 Secrets 账号登录成功 → 把哈希落库，之后改密码改的就是这一行
+  if (!fromDb && db) {
+    try {
+      await saveTeacherHash(db, record.account, record.name, record.hash);
+    } catch { /* 落库失败不影响本次登录 */ }
+  }
+
   fails.delete(account);
+  try { if (db) await db.end(); } catch { /* ignore */ }
 
   try {
-    const { token, exp } = await signTeacherToken(teacher.account, teacher.name);
+    const { token, exp } = await signTeacherToken(record.account, record.name);
     return jsonResp({
       token,
-      account: teacher.account,
-      name: teacher.name,
+      account: record.account,
+      name: record.name,
       exp,
       expiresIn: exp - Math.floor(Date.now() / 1000),
     });

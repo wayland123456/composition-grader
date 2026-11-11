@@ -26,6 +26,7 @@
       <span class="teacher-chip" id="teacherChip" hidden>🧑‍🏫 <b id="teacherName">—</b></span>
       <span class="badge" id="apiStatus" data-page-node-id="VIvtxFfHGuA4g3BeKu0zSC" style="">⚙ Mock 模式</span>
       <button class="link-btn" id="btnSettings" data-page-node-id="qBKFYUbE60FsZ65EIU21zD">⚙ 设置</button>
+      <button class="link-btn" id="btnChangePwd" hidden>🔑 改密码</button>
       <button class="link-btn" id="btnLogout" hidden>退出</button>
     </div>
   </div>
@@ -284,6 +285,35 @@
     <div class="modal-foot">
       <button class="btn btn-ghost" id="btnCancelLogin">取消</button>
       <button class="btn btn-primary" id="btnDoLogin">登 录</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============== 修改密码弹窗 ============== -->
+<div class="modal" id="changePwdModal" hidden>
+  <div class="modal-card modal-card-sm">
+    <div class="modal-head">
+      <h3>🔑 修改密码</h3>
+      <button class="link-btn" id="btnCloseCp">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="meta-field">
+        <label>当前密码</label>
+        <input type="password" id="cpOld" placeholder="请输入当前密码" autocomplete="current-password">
+      </div>
+      <div class="meta-field">
+        <label>新密码</label>
+        <input type="password" id="cpNew1" placeholder="8 位以上，含字母和数字" autocomplete="new-password">
+      </div>
+      <div class="meta-field">
+        <label>确认新密码</label>
+        <input type="password" id="cpNew2" placeholder="再输一次新密码" autocomplete="new-password">
+      </div>
+      <div class="login-error" id="cpError" hidden></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="btnCancelCp">取消</button>
+      <button class="btn btn-primary" id="btnDoCp">确认修改</button>
     </div>
   </div>
 </div>

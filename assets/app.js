@@ -67,12 +67,14 @@ function syncAuthUI() {
   const u = state.auth.user;
   const chip = $('teacherChip');
   const out = $('btnLogout');
+  const chg = $('btnChangePwd');
   if (chip) {
     chip.hidden = !u;
     const nameEl = $('teacherName');
     if (nameEl && u) nameEl.textContent = u.name;
   }
   if (out) out.hidden = !u;
+  if (chg) chg.hidden = !u;
 }
 
 function openLogin(step) {
@@ -174,6 +176,85 @@ function handleExpired(message) {
   syncAuthUI();
   flashToast('⚠️ ' + (message || '登录已过期，请重新登录'));
   openLogin(state.step >= 1 ? state.step : 1);
+}
+
+/* ====================================================================
+ * 修改密码（登录后可用）
+ * 身份由令牌决定，前端不传账号，改不了别人的密码。
+ * ==================================================================== */
+function openChangePwd() {
+  $('cpOld').value = '';
+  $('cpNew1').value = '';
+  $('cpNew2').value = '';
+  $('cpError').hidden = true;
+  $('changePwdModal').hidden = false;
+  setTimeout(() => { try { $('cpOld').focus(); } catch (e) {} }, 60);
+}
+
+function closeChangePwd() {
+  $('changePwdModal').hidden = true;
+}
+
+function showCpError(msg) {
+  const el = $('cpError');
+  el.textContent = msg;
+  el.hidden = false;
+}
+
+async function doChangePassword() {
+  const oldPwd = $('cpOld').value;
+  const new1 = $('cpNew1').value;
+  const new2 = $('cpNew2').value;
+  const btn = $('btnDoCp');
+
+  if (!oldPwd || !new1 || !new2) { showCpError('请把三个输入框都填完'); return; }
+  if (new1.length < 8) { showCpError('新密码至少 8 位'); return; }
+  if (!/[A-Za-z]/.test(new1) || !/[0-9]/.test(new1)) { showCpError('新密码要同时包含字母和数字'); return; }
+  if (new1 !== new2) { showCpError('两次输入的新密码不一致'); return; }
+  if (new1 === oldPwd) { showCpError('新密码不能和当前密码一样'); return; }
+
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
+  try {
+    const resp = await fetch(edgeBase() + '/change-password', {
+      method: 'POST',
+      headers: edgeAuth(),
+      body: JSON.stringify({ oldPassword: oldPwd, newPassword: new1 })
+    });
+    const json = await resp.json().catch(() => ({}));
+
+    if (resp.ok && json.ok) {
+      // 服务端返回了新令牌，直接替换本地会话，免得马上被踢
+      if (json.token) {
+        const session = {
+          account: state.auth.user.account,
+          name: state.auth.user.name,
+          token: json.token,
+          exp: json.exp
+        };
+        state.auth.token = json.token;
+        state.auth.exp = json.exp;
+        writeAuth(session);
+      }
+      closeChangePwd();
+      flashToast('✅ 密码已修改，下次登录请用新密码');
+      return;
+    }
+
+    const msg = json.error || ('修改失败 HTTP ' + resp.status);
+    if (resp.status === 401 && msg.indexOf('当前密码') >= 0) {
+      showCpError('当前密码不正确');
+    } else if (resp.status === 401 || resp.status === 403) {
+      closeChangePwd();
+      handleExpired(msg);
+    } else {
+      showCpError(msg);
+    }
+  } catch (e) {
+    showCpError('无法连接服务：' + (e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText || '确认修改'; }
+  }
 }
 
 /* ====================================================================
@@ -1310,6 +1391,13 @@ window.addEventListener('DOMContentLoaded', () => {
   $('btnCancelLogin').addEventListener('click', closeLogin);
   $('btnCloseLogin').addEventListener('click', closeLogin);
   $('btnLogout').addEventListener('click', logout);
+  $('btnChangePwd').addEventListener('click', openChangePwd);
+  $('btnCancelCp').addEventListener('click', closeChangePwd);
+  $('btnCloseCp').addEventListener('click', closeChangePwd);
+  $('btnDoCp').addEventListener('click', doChangePassword);
+  ['cpOld', 'cpNew1', 'cpNew2'].forEach((id) => {
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') doChangePassword(); });
+  });
   [$('loginAccount'), $('loginPassword')].forEach((el) => {
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   });

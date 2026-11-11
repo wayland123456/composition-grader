@@ -201,3 +201,24 @@ export async function verifyPassword(
 export function b64FromString(s: string): string {
   return b64Encode(new TextEncoder().encode(s));
 }
+
+/** 生成新的密码哈希串，格式与 verifyPassword 期望的一致 */
+export async function hashPassword(
+  password: string,
+  iterations = 100000,
+): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations, hash: "SHA-256" },
+    key,
+    256,
+  );
+  return `pbkdf2$${iterations}$${b64Encode(salt)}$${b64Encode(new Uint8Array(bits))}`;
+}
