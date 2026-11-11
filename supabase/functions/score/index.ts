@@ -18,22 +18,10 @@ const CORS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// 服务端鉴权：允许的 apikey 集合 = 项目 publishable key（新版）
-// 平台 verify_jwt 必须关（publishable key 不是 JWT），由函数自己校验 apikey header。
-// 优先读 env `SUPABASE_PUBLISHABLE_KEYS`（JSON 对象数组）兜底硬编码。
-const FALLBACK_KEY = "sb_publishable_PqN5m9yOrWZzBazFjO7Y_w_pfIMO1PI"; // 英语网站项目 publishable
-const EXPECTED_KEYS = (() => {
-  const keys = new Set<string>();
-  try {
-    const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "";
-    if (raw) {
-      const obj = JSON.parse(raw);
-      for (const v of Object.values(obj)) keys.add(String(v));
-    }
-  } catch {}
-  keys.add(FALLBACK_KEY);
-  return keys;
-})();
+// 服务端鉴权（2026-11-11 改造）：只认 login 函数签发的教师令牌。
+// publishable key 是公开的、拿网页源码就有，绝不能当通行证用。
+// 平台层的 Verify JWT 保持 Disable（自签令牌不是 Supabase 签发的），由函数自己验签。
+import { verifyTeacher } from "../_shared/auth.ts";
 
 // DashScope API Key：只从 Edge Function Secrets 读取，禁止写入代码或仓库。
 // 配置方式：Supabase Dashboard -> Project Settings -> Edge Functions -> Secrets
@@ -259,13 +247,10 @@ serve(async (req) => {
     return jsonResp({ error: "仅支持 POST" }, 405);
   }
 
-  // 鉴权：校验 apikey header。若项目有 publishable keys，必须匹配其中一把。
-  const authKey = req.headers.get("apikey") || "";
-  if (!authKey) {
-    return jsonResp({ error: "缺少 apikey" }, 401);
-  }
-  if (EXPECTED_KEYS.size > 0 && !EXPECTED_KEYS.has(authKey)) {
-    return jsonResp({ error: "apikey 无效" }, 401);
+  // 鉴权：必须是已登录教师（login 函数签发的令牌）
+  const auth = await verifyTeacher(req);
+  if (!auth.ok) {
+    return jsonResp({ error: auth.error }, auth.status || 401);
   }
 
   const apiKey = getDashKey();
@@ -289,6 +274,12 @@ serve(async (req) => {
 
   if (!content) {
     return jsonResp({ error: "缺少作文正文 content" }, 400);
+  }
+
+  // 成本护栏：一篇作文正常几百字，超过 8000 字基本可以断定不是正常批改请求，
+  // 防止令牌万一外泄后被用来跑长文本刷额度。
+  if (content.length > 8000 || question.length > 8000 || title.length > 200) {
+    return jsonResp({ error: "内容超出单次批改上限（正文/题目各 8000 字）" }, 413);
   }
 
   const userText = `${RUBRIC}\n\n${FEW_SHOT}\n\n【特别要求】\n- 阅卷前先过【阅卷三大法则】（真情、思考、逻辑）和【八要和八不要】，触发的"不要"条款要在 basicReason 里点明\n- polish_examples 必须从学生原文中引用原句（不是泛指），并给出可直接复用的升格版（30-80 字），按【升格方法论】的"定位问题→升格要点→示范改写→提分"四步走\n- gain_plan 按"性价比"排序：第一条必须是改起来最快、提分最明显的；至少 4 条\n- 升格示范避免空话（"用更生动的语言"这种不算），必须有具体的修辞/句式/论据，并填 technique 字段\n- 提分幅度基于 60 分卷的常见档位差给出（如"+2~3 分到一类卷底线"）\n- 发展等级严格遵守等级匹配：以内容、表达两项中较低的等次为基准，最多上浮一档（如内容三等、表达一等 → 发展只能在二等或三等区间给分），不能跨越基础等级的得分等级\n- 硬性扣分：缺标题 −2，错别字每 1 个 −1（重复不计，最多 −5），标点错误较多 −1~2，字数每少 50 字 −1（400-600 字总分 ≤ 35、200-400 字 ≤ 25、不足 200 字 ≤ 15），扣完得 total\n- ⚠️ 若学生作文出现真实校名/姓名等个人信息，必须在 issues 中点出并扣 3-5 分\n\n【作文题目】\n${title || "（无题）"}\n\n【原题/要求】\n${question || "（未提供原题，按通用记叙文/议论文标准评）"}\n\n【学生作文】\n${content}\n\n请按 SYSTEM 字段定义输出 JSON。`;

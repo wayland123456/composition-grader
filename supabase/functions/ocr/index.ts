@@ -15,22 +15,10 @@ const CORS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// 服务端鉴权：允许的 apikey 集合 = 项目 publishable key（新版）
-// 平台 verify_jwt 必须关（publishable key 不是 JWT），由函数自己校验 apikey header。
-// 优先读 env `SUPABASE_PUBLISHABLE_KEYS`（JSON 对象数组）兜底硬编码。
-const FALLBACK_KEY = "sb_publishable_PqN5m9yOrWZzBazFjO7Y_w_pfIMO1PI"; // 英语网站项目 publishable
-const EXPECTED_KEYS = (() => {
-  const keys = new Set<string>();
-  try {
-    const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "";
-    if (raw) {
-      const obj = JSON.parse(raw);
-      for (const v of Object.values(obj)) keys.add(String(v));
-    }
-  } catch {}
-  keys.add(FALLBACK_KEY);
-  return keys;
-})();
+// 服务端鉴权（2026-11-11 改造）：只认 login 函数签发的教师令牌。
+// publishable key 是公开的、拿网页源码就有，绝不能当通行证用。
+// 平台层的 Verify JWT 保持 Disable（自签令牌不是 Supabase 签发的），由函数自己验签。
+import { verifyTeacher } from "../_shared/auth.ts";
 
 // DashScope API Key：只从 Edge Function Secrets 读取，禁止写入代码或仓库。
 // 配置方式：Supabase Dashboard -> Project Settings -> Edge Functions -> Secrets
@@ -53,13 +41,10 @@ serve(async (req) => {
     return jsonResp({ error: "仅支持 POST" }, 405);
   }
 
-  // 鉴权：校验 apikey header。若项目有 publishable keys，必须匹配其中一把。
-  const authKey = req.headers.get("apikey") || "";
-  if (!authKey) {
-    return jsonResp({ error: "缺少 apikey" }, 401);
-  }
-  if (EXPECTED_KEYS.size > 0 && !EXPECTED_KEYS.has(authKey)) {
-    return jsonResp({ error: "apikey 无效" }, 401);
+  // 鉴权：必须是已登录教师（login 函数签发的令牌）
+  const auth = await verifyTeacher(req);
+  if (!auth.ok) {
+    return jsonResp({ error: auth.error }, auth.status || 401);
   }
 
   const apiKey = getDashKey();
@@ -91,6 +76,12 @@ serve(async (req) => {
 
   if (!imageBase64 && !imageUrl) {
     return jsonResp({ error: "缺少 image / imageUrl 字段" }, 400);
+  }
+
+  // 成本护栏：单张图片 base64 超过 4.5MB（约 3.3MB 原图）直接拒绝，
+  // 防止令牌万一外泄后被拿来跑大图批量刷额度。
+  if (imageBase64 && imageBase64.length > 4_500_000) {
+    return jsonResp({ error: "图片过大（超过约 3MB），请压缩后再上传" }, 413);
   }
 
   // 构造 content 第一项

@@ -29,103 +29,37 @@ const state = {
     edgeVerified: false,                               // 启动时 ping 函数验通
     mode: 'edge'                                       // 复用英语网站 Supabase 项目的 Edge Functions
   },
-  auth: { user: null, guest: false }   // 当前登录教师 / guest = 只看分享报告
+  auth: { user: null, token: '', exp: 0, guest: false }  // 当前登录教师 / guest = 只看分享报告
 };
 
 /* ====================================================================
- * 教师账号登录（前端软校验）
+ * 教师登录（2026-11-11 安全改造）
  * --------------------------------------------------------------------
- * 账号 = 教师姓名全拼，初始密码统一 123456。
- * 源码里只存「盐 + 账号 + 密码」的 SHA-256 摘要，不出现明文密码；
- * 这是静态站点的轻量门禁（防误入），不是服务端鉴权 —— 谁都能改前端 JS，
- * 所以别把需要真保密的资料放在这个页面后面。
+ * 校验全部在服务端（Supabase Edge Function `login`）：账号密码对了才签发
+ * 一枚 8 小时有效的 JWT，其它函数只认这枚令牌。
+ *
+ * 为什么必须这样：publishable key 天生要公开在网页里，谁按 F12 都能看到。
+ * 旧版把它当"通行证"，等于把接口白送给所有人 —— 拿到源码就能刷模型 token。
+ * 现在前端代码里没有任何能换到调用权的东西：签名密钥只在 Supabase Secrets，
+ * 前端伪造不了、也猜不出。
+ *
+ * 令牌存 localStorage（8 小时过期），关闭页面不丢；公用电脑用完请点「退出」。
  * ==================================================================== */
-const AUTH_SALT = 'cp-grader-v1';
-const AUTH_KEY = 'composition_platform_auth_v1';
-const AUTH_TTL = 7 * 24 * 60 * 60 * 1000;   // 登录状态保留 7 天
-
-const TEACHERS = [
-  { account: 'lihaifeng', name: '李海峰', hash: '45ecf2aecb9563c520f90993c2c2ea110397fee423f25a35a149e14ec90a7e81' },
-  { account: 'zhounian',  name: '周念',   hash: '8f56b9fdebe8ca2a37c7dc5639872434f055172441bcb5c28252d10513e2aafa' },
-  { account: 'qizhengwei', name: '祁正伟', hash: '4cf9ed24d183c9458c5fe5bf7d25f4c8346df5f715fe6978c365df90a145f400' }
-];
-
+const AUTH_KEY = 'composition_platform_session_v1';
 let pendingStep = 0;   // 登录成功后要去的步骤
 
-/* ---- 极简 SHA-256：不依赖 crypto.subtle，file:// 直接打开也能用 ---- */
-function sha256Hex(msg) {
-  const K = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
-  ];
-  const bytes = new TextEncoder().encode(String(msg));
-  const bitLen = bytes.length * 8;
-  const total = ((bytes.length + 8) >> 6) * 64 + 64;   // 标准 0x80 + 补零 + 64 位长度
-  const buf = new Uint8Array(total);
-  buf.set(bytes);
-  buf[bytes.length] = 0x80;
-  const dv = new DataView(buf.buffer);
-  dv.setUint32(total - 8, Math.floor(bitLen / 4294967296), false);
-  dv.setUint32(total - 4, bitLen >>> 0, false);
-
-  let H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
-  const w = new Uint32Array(64);
-  const rr = (x, n) => (x >>> n) | (x << (32 - n));
-
-  for (let i = 0; i < total; i += 64) {
-    for (let t = 0; t < 16; t++) w[t] = dv.getUint32(i + t * 4, false);
-    for (let t = 16; t < 64; t++) {
-      const s0 = rr(w[t - 15], 7) ^ rr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
-      const s1 = rr(w[t - 2], 17) ^ rr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
-      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
-    }
-    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
-    for (let t = 0; t < 64; t++) {
-      const S1 = rr(e, 6) ^ rr(e, 11) ^ rr(e, 25);
-      const ch = (e & f) ^ (~e & g);
-      const t1 = (h + S1 + ch + K[t] + w[t]) >>> 0;
-      const S0 = rr(a, 2) ^ rr(a, 13) ^ rr(a, 22);
-      const mj = (a & b) ^ (a & c) ^ (b & c);
-      const t2 = (S0 + mj) >>> 0;
-      h = g; g = f; f = e; e = (d + t1) >>> 0;
-      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
-    }
-    H = [(H[0] + a) >>> 0, (H[1] + b) >>> 0, (H[2] + c) >>> 0, (H[3] + d) >>> 0,
-         (H[4] + e) >>> 0, (H[5] + f) >>> 0, (H[6] + g) >>> 0, (H[7] + h) >>> 0];
-  }
-  return H.map((x) => x.toString(16).padStart(8, '0')).join('');
-}
-
-function findTeacher(account) {
-  const a = String(account || '').trim().toLowerCase();
-  return TEACHERS.find((t) => t.account === a) || null;
-}
-
-function passwordHash(account, password) {
-  return sha256Hex(AUTH_SALT + '|' + account + '|' + password);
-}
-
-/* 读取本地登录状态（过期自动失效） */
+/* 读取本地会话（过期自动失效） */
 function readAuth() {
   try {
     const o = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
-    if (!o || !o.account || !o.exp) return null;
-    if (Date.now() > o.exp) { localStorage.removeItem(AUTH_KEY); return null; }
-    const t = findTeacher(o.account);
-    return t ? { account: t.account, name: t.name } : null;
+    if (!o || !o.token || !o.account || !o.exp) return null;
+    if (o.exp * 1000 <= Date.now()) { localStorage.removeItem(AUTH_KEY); return null; }
+    return o;
   } catch (e) { return null; }
 }
 
-function writeAuth(teacher) {
-  localStorage.setItem(AUTH_KEY, JSON.stringify({
-    account: teacher.account, name: teacher.name, exp: Date.now() + AUTH_TTL
-  }));
+function writeAuth(session) {
+  localStorage.setItem(AUTH_KEY, JSON.stringify(session));
 }
 
 /* 顶栏显示 / 隐藏教师身份 */
@@ -154,40 +88,92 @@ function closeLogin() {
   $('loginModal').hidden = true;
 }
 
-function doLogin() {
+function showLoginError(msg) {
+  const err = $('loginError');
+  err.textContent = msg;
+  err.hidden = false;
+}
+
+/* 登录：请求服务端校验，拿回令牌 */
+async function doLogin() {
   const account = $('loginAccount').value.trim();
   const pwd = $('loginPassword').value;
-  const err = $('loginError');
-  const t = findTeacher(account);
+  const btn = $('btnDoLogin');
+
   if (!account || !pwd) {
-    err.textContent = '请输入账号和密码';
-    err.hidden = false;
+    showLoginError('请输入账号和密码');
     return;
   }
-  if (!t || passwordHash(t.account, pwd) !== t.hash) {
-    err.textContent = '账号或密码不正确，请检查后重试';
-    err.hidden = false;
-    $('loginPassword').value = '';
-    $('loginPassword').focus();
-    return;
+
+  const oldText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '验证中…'; }
+  try {
+    const resp = await fetch(edgeBase() + '/login', {
+      method: 'POST',
+      headers: {
+        'apikey': state.config.edgeAnonKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ account: account, password: pwd })
+    });
+    const json = await resp.json().catch(() => ({}));
+
+    if (!resp.ok || !json.token) {
+      if (resp.status === 429 || resp.status === 401 || resp.status === 400) {
+        showLoginError(json.error || '账号或密码不正确');
+      } else {
+        showLoginError('登录服务暂时不可用（' + resp.status + '）：' +
+          (json.error || '请稍后重试，或联系管理员检查 Supabase 是否被暂停'));
+      }
+      $('loginPassword').value = '';
+      try { $('loginPassword').focus(); } catch (e) {}
+      return;
+    }
+
+    const session = {
+      account: json.account,
+      name: json.name,
+      token: json.token,
+      exp: json.exp
+    };
+    state.auth.user = { account: session.account, name: session.name };
+    state.auth.token = session.token;
+    state.auth.exp = session.exp;
+    state.auth.guest = false;
+    writeAuth(session);
+    syncAuthUI();
+    $('loginError').hidden = true;
+    closeLogin();
+    flashToast('✅ 欢迎回来，' + session.name + '老师');
+    goStep(pendingStep || 1);
+  } catch (e) {
+    showLoginError('无法连接登录服务：' + (e.message || e) +
+      '（请检查网络，或确认 Supabase 项目是否被暂停）');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = oldText || '登 录'; }
   }
-  err.hidden = true;
-  state.auth.user = { account: t.account, name: t.name };
-  state.auth.guest = false;
-  writeAuth(t);
-  syncAuthUI();
-  closeLogin();
-  flashToast('✅ 欢迎回来，' + t.name + '老师');
-  goStep(pendingStep || 1);
 }
 
 function logout() {
   localStorage.removeItem(AUTH_KEY);
   state.auth.user = null;
+  state.auth.token = '';
+  state.auth.exp = 0;
   state.auth.guest = false;
   syncAuthUI();
   goStep(0);
   flashToast('已退出登录');
+}
+
+/* 令牌失效统一处理：清掉本地会话，弹出登录框 */
+function handleExpired(message) {
+  localStorage.removeItem(AUTH_KEY);
+  state.auth.user = null;
+  state.auth.token = '';
+  state.auth.exp = 0;
+  syncAuthUI();
+  flashToast('⚠️ ' + (message || '登录已过期，请重新登录'));
+  openLogin(state.step >= 1 ? state.step : 1);
 }
 
 /* ====================================================================
@@ -333,9 +319,10 @@ function edgeBase() {
 function edgeAuth() {
   const k = state.config.edgeAnonKey;
   if (!k) throw new Error('请先在【设置】里填写 Supabase publishable key（sb_publishable_ 开头）');
-  // ⚠️ 新版 publishable key 不是 JWT，只能放 apikey 头；绝不能放 Authorization: Bearer
-  //（平台会把 Bearer 里的 sb_... 当 JWT 解析 → Invalid JWT）。函数需设 verify_jwt=false。
-  return { 'apikey': k, 'Content-Type': 'application/json' };
+  const headers = { 'apikey': k, 'Content-Type': 'application/json' };
+  // apikey 只用于让网关放行，真正的通行证是登录后拿到的教师令牌
+  if (state.auth.token) headers['Authorization'] = 'Bearer ' + state.auth.token;
+  return headers;
 }
 
 async function edgeOcr(dataUrl) {
@@ -345,6 +332,10 @@ async function edgeOcr(dataUrl) {
     body: JSON.stringify({ image: dataUrl })
   });
   const json = await resp.json().catch(() => ({}));
+  if (resp.status === 401 || resp.status === 403) {
+    handleExpired(json.error);
+    throw new Error(json.error || '登录已过期，请重新登录');
+  }
   if (!resp.ok) throw new Error('Edge OCR ' + resp.status + '：' + (json.error || JSON.stringify(json).slice(0, 200)));
   if (!json.text) throw new Error('OCR 未识别出文字：' + JSON.stringify(json).slice(0, 200));
   return json.text;
@@ -357,6 +348,10 @@ async function edgeScore(title, content, question) {
     body: JSON.stringify({ title, content, question })
   });
   const json = await resp.json().catch(() => ({}));
+  if (resp.status === 401 || resp.status === 403) {
+    handleExpired(json.error);
+    throw new Error(json.error || '登录已过期，请重新登录');
+  }
   if (!resp.ok) throw new Error('Edge Score ' + resp.status + '：' + (json.error || JSON.stringify(json).slice(0, 200)));
 
   // 把后端返回的新版 JSON 对齐到前端渲染字段
@@ -1073,6 +1068,10 @@ async function shareReport() {
       body: JSON.stringify({ data: payload })
     });
     const json = await resp.json().catch(() => ({}));
+    if (resp.status === 401 || resp.status === 403) {
+      handleExpired(json.error);
+      throw new Error(json.error || '登录已过期，请重新登录');
+    }
     if (!resp.ok || !json.id) {
       throw new Error(json.error || ('存储失败 HTTP ' + resp.status));
     }
@@ -1299,8 +1298,13 @@ window.cp = {
 };
 
 window.addEventListener('DOMContentLoaded', () => {
-  // 0. 恢复上次的登录状态（7 天内免登录）+ 绑定登录弹窗
-  state.auth.user = readAuth();
+  // 0. 恢复上次的登录状态（令牌 8 小时有效）+ 绑定登录弹窗
+  const session = readAuth();
+  if (session) {
+    state.auth.user = { account: session.account, name: session.name };
+    state.auth.token = session.token;
+    state.auth.exp = session.exp;
+  }
   syncAuthUI();
   $('btnDoLogin').addEventListener('click', doLogin);
   $('btnCancelLogin').addEventListener('click', closeLogin);

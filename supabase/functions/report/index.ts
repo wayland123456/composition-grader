@@ -4,11 +4,15 @@
 //   POST  { data: {...} }        ->  { id }        存报告，返回 8 位短 ID
 //   GET   ?id=<短ID>             ->  { id, data }  取报告
 //
-// 鉴权：apikey header = publishable key（与 ocr/score 一致，函数需设 Verify JWT = Disable）。
+// 鉴权（2026-11-11 改造）：
+//   POST 存报告 → 必须是已登录教师（只认 login 签发的令牌）
+//   GET  读报告 → 不要求登录：分享链接是给同事/家长看的，8 位随机 ID 本身就是凭据，
+//                 强制登录会让"分享报告"功能失效。
 // 存储：直连 Supabase Postgres（SUPABASE_DB_URL），表 public.reports 首次运行时自动创建。
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { verifyTeacher } from "../_shared/auth.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -16,9 +20,6 @@ const CORS = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
-
-// 允许的 apikey（publishable key），与 ocr/score 保持一致
-const FALLBACK_KEY = "sb_publishable_PqN5m9yOrWZzBazFjO7Y_w_pfIMO1PI";
 
 function jsonResp(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -48,19 +49,13 @@ serve(async (req) => {
   // CORS 预检
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  // 鉴权：校验 apikey header
-  const authKey = req.headers.get("apikey") || "";
-  let valid = authKey === FALLBACK_KEY;
-  if (!valid) {
-    try {
-      const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") || "{}";
-      const obj = JSON.parse(raw);
-      valid = Object.values(obj).some((v) => String(v) === authKey);
-    } catch {
-      /* ignore */
+  // 鉴权：POST 存报告必须已登录教师；GET 看分享报告不要求登录（见文件头说明）
+  if (req.method === "POST") {
+    const auth = await verifyTeacher(req);
+    if (!auth.ok) {
+      return jsonResp({ error: auth.error }, auth.status || 401);
     }
   }
-  if (!valid) return jsonResp({ error: "apikey 无效" }, 401);
 
   let db: Client;
   try {

@@ -2,7 +2,9 @@
 
 高考 60 分制（基础 40 + 发展 20）智能批改平台。前端纯静态，部署到 GitHub Pages，DashScope API Key 通过 Supabase Edge Functions 隔离保存，**前端永不暴露密钥**。
 
-## 教师账号（2026-11-11 起教师端需登录）
+## 教师登录与安全架构（2026-11-11 安全改造）
+
+### 账号
 
 | 姓名 | 账号（姓名全拼） |
 |------|------------------|
@@ -10,21 +12,56 @@
 | 周念 | `zhounian` |
 | 祁正伟 | `qizhengwei` |
 
-初始密码三人统一，**不在本仓库明文记录**（仓库是 public），由管理员线下告知。
+密码为每人一组 12 位强密码，**不在本仓库、也不在任何前端文件里**，只由管理员单独告知本人。
+（本机备份：`E://WorkBuddy//过程//composition-grader-账号密钥_20261111.txt`）
 
-- 点「教师入口」时弹出登录框，登录后进入批改流程；登录状态在本机保留 **7 天**，顶栏右上角显示当前教师，点「退出」即可切换账号。
-- 「学生入口」和带 `?r=` 的分享报告链接**不需要登录**（学生自助批改走 Coze，同事看报告走分享链接）。
-- 源码 `assets/app.js` 的 `TEACHERS` 里只存 `SHA-256(盐 + 账号 + 密码)` 摘要，**没有明文密码**。改密码时用 `node -e` 算摘要替换即可（见下方「改密码」）。
-- ⚠️ 这是**前端软校验**，只能防误入，不是服务端鉴权：任何人打开 F12 都能改 JS 绕过，也拿得到 anon key。真要挡人得把批改接口收到 Supabase Auth 后面。
+### 为什么改成这样
+
+旧架构把 publishable key 当"通行证"：凡是拿着这个 key 的请求一律放行。可 publishable key 天生就要公开在网页里（F12 一看就有），
+结果是**任何人打开网页、复制那个 key，就能无限调用 ocr / score 刷掉 DashScope 额度**。2026-09-07 的密钥泄露事故就是这么发生的。
+
+2026-11-11 起改为「服务端签发令牌」：
+
+```
+浏览器 ──账号+密码──> login 函数 ──校验 PBKDF2 哈希──> 签发 8 小时 JWT
+   │                                                      │
+   └──后续请求带 Authorization: Bearer <JWT> ──> ocr / score / report 验签放行
+```
+
+- 签名密钥 `AUTH_JWT_SECRET` 只存在 Supabase Secrets，前端伪造不了；令牌里带 `exp`，8 小时自动失效。
+- 前端代码里**没有任何能换到调用权的字符串**——拿到源码、拿到 publishable key，都调不动接口。
+- 密码用 PBKDF2-SHA256（100000 次迭代 + 随机盐）存哈希，同一实例内同一账号连错 5 次锁 10 分钟。
+- 兜底护栏：单张图片超约 3MB、单篇正文超 8000 字直接拒绝，防止令牌万一外泄被拿来跑大批量。
+
+> ⚠️ 平台层的 **Verify JWT 要保持 Disable**：我们用的是自签令牌，不是 Supabase Auth 签发的，
+> 打开平台层校验会把所有请求当"Invalid JWT"拦掉。真正的校验在函数内部（`_shared/auth.ts`）。
+
+### 哪些地方要登录
+
+| 入口 | 是否需要登录 |
+|------|--------------|
+| 教师入口 / 批改流程（上传、识别、评分） | ✅ 需要 |
+| 分享报告（生成短链接） | ✅ 需要 |
+| 查看分享报告（`?r=xxxx` 链接） | ❌ 不需要，短 ID 本身就是凭据 |
+| 学生入口（跳 Coze 智能体） | ❌ 不需要 |
 
 ### 改密码 / 加账号
 
+密码哈希在 Supabase Secret `TEACHER_ACCOUNTS`（JSON 数组）里，不在代码中。改法：
+
 ```bash
-node -e "const c=require('crypto');console.log(c.createHash('sha256').update('cp-grader-v1|账号|新密码').digest('hex'))"
+# 1. 生成新哈希
+node -e "const c=require('crypto');const p=process.argv[1];const s=c.randomBytes(16);const h=c.pbkdf2Sync(p,s,100000,32,'sha256');console.log('pbkdf2$100000$'+s.toString('base64')+'$'+h.toString('base64'))" '新密码'
+
+# 2. 替换 TEACHER_ACCOUNTS 里对应账号的 hash，重新设置 Secret 并重部署 login
+supabase secrets set --project-ref gqlwspxcyhjtzhikcexj TEACHER_ACCOUNTS='[...]'
+supabase functions deploy login --project-ref gqlwspxcyhjtzhikcexj --no-verify-jwt
 ```
 
-把输出替换 `TEACHERS` 里对应账号的 `hash`（盐值 `cp-grader-v1` 不要改，改了所有旧密码都失效）。
+### 成本兜底（强烈建议同时做）
 
+即便架构再严，令牌仍可能经老师本机外泄。建议去**阿里云百炼控制台**给这把 Key 绑一个月度消费上限（或换成 RAM 子账号 + 配额），
+这样就算真出事，损失也有天花板。
 
 ## 目录结构
 
@@ -36,8 +73,11 @@ composition-platform/
 │   └── styles.css                  # 样式
 ├── supabase/
 │   └── functions/
-│       ├── ocr/index.ts            # Supabase Edge Function · OCR 代理
-│       └── score/index.ts          # Supabase Edge Function · 评分代理
+│       ├── _shared/auth.ts         # 令牌签发/验签、PBKDF2 密码校验（被下面几个函数共用）
+│       ├── login/index.ts          # 登录：校验账号密码 → 签发 8 小时 JWT
+│       ├── ocr/index.ts            # OCR 代理（需教师令牌）
+│       ├── score/index.ts          # 评分代理（需教师令牌）
+│       └── report/index.ts         # 分享报告存取（存需令牌，读免登录）
 └── .github/
     └── workflows/
         ├── deploy-pages.yml        # GitHub Pages 自动部署
@@ -146,10 +186,35 @@ https://wayland123456.github.io/composition-grader/
 
 ## 安全要点
 
-- ✅ DashScope Key 只存 Supabase Secrets，前端任何文件均不包含
-- ✅ 前端只暴露 Supabase anon key（按 Supabase 官方的设计就是给前端用的），配合 `verify_jwt: true` 防止滥用
-- ⚠️ 任何拿到 anon key + URL 的人都能调 Edge Functions，单次成本 ≈ 几厘钱
-- 📊 如果担心被刷，在 Supabase Dashboard → Edge Functions → 设置 **Rate Limit**
+- ✅ DashScope Key 只存 Supabase Secrets（`DASHSCOPE_API_KEY`），前端任何文件均不包含
+- ✅ 令牌签名密钥只存 Secrets（`AUTH_JWT_SECRET`），前端伪造不了签名
+- ✅ 教师密码只存 PBKDF2 哈希（`TEACHER_ACCOUNTS`），仓库里没有明文
+- ✅ **拿到网页源码 + publishable key 也调不动接口**：没有合法令牌一律 401
+- ⚠️ 平台层 Verify JWT 必须保持 **Disable**（自签令牌不是 Supabase 签发的），校验在 `_shared/auth.ts` 内部完成
+- ⚠️ 仍属"前端 + Serverless"架构，真正的资产（模型 Key、签名密钥、密码哈希）都在服务端
+- 📊 成本天花板请在阿里云侧设额度上限，不要只依赖代码
+
+## 部署（2026-11-11 之后的版本必须用 CLI）
+
+`_shared/auth.ts` 被多个函数 import，Dashboard 的单文件粘贴部署**不认相对路径**，必须用 CLI：
+
+```bash
+# 首次：登录并关联项目
+supabase login
+supabase link --project-ref gqlwspxcyhjtzhikcexj
+
+# 设置两个服务端 Secret（值见本机备份文件，不要提交到仓库）
+supabase secrets set --project-ref gqlwspxcyhjtzhikcexj \
+  AUTH_JWT_SECRET='<48字节随机串>' \
+  TEACHER_ACCOUNTS='[{"account":"lihaifeng","name":"李海峰","hash":"pbkdf2$..."},...]'
+
+# 部署四个函数（--no-verify-jwt：平台层校验必须关，函数内自己验签）
+for fn in login ocr score report; do
+  supabase functions deploy $fn --project-ref gqlwspxcyhjtzhikcexj --no-verify-jwt
+done
+```
+
+前端改动推 GitHub 即可（Pages 自动部署）。
 
 ## 本地开发
 
